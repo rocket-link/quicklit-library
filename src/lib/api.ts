@@ -1,7 +1,7 @@
-
 // Import Supabase client
 import { supabase } from './supabase';
 import type { Book } from '../types/book';
+import { getOpenAIKey } from './openai';
 
 export const categories = {
   getAllCategories: async () => {
@@ -39,31 +39,23 @@ export const admin = {
     try {
       console.log("API: Creating book with data:", bookData);
       
-      // First, create the book entry
-      const bookPayload = {
+      // Prepare the payload for the edge function
+      const payload = {
         title: bookData.title,
         description: bookData.description || null,
         isbn: bookData.isbn || null,
         published_year: bookData.published_year || new Date().getFullYear(),
-        language: 'en', // Default value
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        author_name: bookData.author_name || null,
+        category_ids: bookData.category_ids || [],
       };
       
-      // Insert the book
-      const { data: bookData_, error: bookError } = await supabase
-        .from('books')
-        .insert(bookPayload)
-        .select()
-        .single();
-      
-      if (bookError) throw bookError;
-      
-      // If we have a book cover, upload it to storage
+      // If we have a cover image, we need to upload it first
       let coverImageUrl = null;
       if (bookData.cover_image) {
+        // Generate a unique filename
+        const timestamp = new Date().getTime();
         const fileExt = bookData.cover_image.name.split('.').pop();
-        const fileName = `${bookData_.id}.${fileExt}`;
+        const fileName = `${timestamp}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
         const filePath = `book_covers/${fileName}`;
         
         // Upload the image to Supabase Storage
@@ -81,94 +73,29 @@ export const admin = {
           .getPublicUrl(filePath);
         
         coverImageUrl = urlData?.publicUrl;
-        
-        // Update book with cover image URL
-        const { error: updateError } = await supabase
-          .from('books')
-          .update({ cover_image_url: coverImageUrl })
-          .eq('id', bookData_.id);
-        
-        if (updateError) throw updateError;
+        payload.cover_image_url = coverImageUrl;
       }
       
-      // If we have author info, we need to create or find the author
-      if (bookData.author_name) {
-        // Look for existing author
-        const { data: authorData, error: authorFetchError } = await supabase
-          .from('authors')
-          .select('*')
-          .ilike('name', bookData.author_name)
-          .limit(1);
-        
-        let authorId;
-        
-        if (authorFetchError) throw authorFetchError;
-        
-        if (authorData && authorData.length > 0) {
-          // Use existing author
-          authorId = authorData[0].id;
-        } else {
-          // Create new author
-          const { data: newAuthor, error: newAuthorError } = await supabase
-            .from('authors')
-            .insert({
-              name: bookData.author_name,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            })
-            .select()
-            .single();
-          
-          if (newAuthorError) throw newAuthorError;
-          authorId = newAuthor.id;
-        }
-        
-        // Update book with author ID
-        const { error: updateAuthorError } = await supabase
-          .from('books')
-          .update({ original_author_id: authorId })
-          .eq('id', bookData_.id);
-        
-        if (updateAuthorError) throw updateAuthorError;
+      // Call the Edge function to create the book with admin privileges
+      const { data, error } = await supabase.functions.invoke('create-book', {
+        body: payload
+      });
+      
+      if (error) throw error;
+      
+      if (!data || !data.book) {
+        throw new Error('No book data returned from Edge function');
       }
-      
-      // If we have category IDs, link them to the book
-      if (bookData.category_ids && bookData.category_ids.length > 0) {
-        const categoryLinks = bookData.category_ids.map(categoryId => ({
-          book_id: bookData_.id,
-          category_id: categoryId
-        }));
-        
-        const { error: categoryError } = await supabase
-          .from('book_categories')
-          .insert(categoryLinks);
-        
-        if (categoryError) throw categoryError;
-      }
-      
-      // Get the complete book data with author info
-      const { data: completeBook, error: fetchError } = await supabase
-        .from('books')
-        .select(`
-          *,
-          authors:original_author_id (
-            name
-          )
-        `)
-        .eq('id', bookData_.id)
-        .single();
-      
-      if (fetchError) throw fetchError;
       
       // Transform to match expected return format
       const transformedBook = {
-        id: completeBook.id,
-        title: completeBook.title,
-        author: completeBook.authors?.name || "Unknown Author",
-        description: completeBook.description,
-        coverImage: completeBook.cover_image_url,
-        publishedYear: completeBook.published_year,
-        isbn: completeBook.isbn,
+        id: data.book.id,
+        title: data.book.title,
+        author: data.book.author || "Unknown Author",
+        description: data.book.description,
+        coverImage: data.book.cover_image_url,
+        publishedYear: data.book.published_year,
+        isbn: data.book.isbn,
         readTime: Math.floor(Math.random() * 30) + 5 // Random read time between 5-35 mins
       };
       

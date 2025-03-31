@@ -137,10 +137,14 @@ const AdminDashboard = () => {
       
       if (result.error) {
         console.error("API returned error:", result.error);
-        throw new Error(result.error.message || "Failed to create book");
+        throw new Error(result.error);
       }
       
       const createdBook = result.book;
+      if (!createdBook) {
+        throw new Error("Failed to create book - no book data returned");
+      }
+      
       console.log("Book created successfully:", createdBook);
       toast({
         title: "Success",
