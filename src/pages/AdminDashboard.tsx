@@ -133,14 +133,15 @@ const AdminDashboard = () => {
     try {
       console.log("Adding new book with data:", bookData);
       
-      const { data, error } = await admin.createBook(bookData);
+      const result = await admin.createBook(bookData);
       
-      if (error) {
-        console.error("API returned error:", error);
-        throw new Error(error.message || "Failed to create book");
+      if (result.error) {
+        console.error("API returned error:", result.error);
+        throw new Error(result.error.message || "Failed to create book");
       }
       
-      console.log("Book created successfully:", data);
+      const createdBook = result.book;
+      console.log("Book created successfully:", createdBook);
       toast({
         title: "Success",
         description: `Book "${bookData.title}" created successfully!`

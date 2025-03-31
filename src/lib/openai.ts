@@ -1,5 +1,16 @@
 
-// Client-side OpenAI integration
-// NOTE: This file is no longer needed as we're using Supabase Edge Functions
+// Client-side OpenAI integration for storing user API keys in local storage
 
-// Empty file to be removed in a future cleanup
+const STORAGE_KEY = 'openai_api_key';
+
+export const getOpenAIKey = (): string | null => {
+  return localStorage.getItem(STORAGE_KEY);
+};
+
+export const setOpenAIKey = (apiKey: string): void => {
+  localStorage.setItem(STORAGE_KEY, apiKey);
+};
+
+export const clearOpenAIKey = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+};

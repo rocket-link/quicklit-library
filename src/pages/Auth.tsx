@@ -24,7 +24,10 @@ const Auth = () => {
 
   const handleSignIn = async () => {
     setIsLoading(true);
-    const { data, error } = await auth.signIn(signInEmail, signInPassword);
+    const { data, error } = await auth.signIn({
+      email: signInEmail,
+      password: signInPassword
+    });
 
     if (error) {
       toast({
@@ -45,9 +48,15 @@ const Auth = () => {
 
   const handleSignUp = async () => {
     setIsLoading(true);
-    const { data, error } = await auth.signUp(signUpEmail, signUpPassword, {
-      full_name: signUpFullName,
-      username: signUpUsername,
+    const { data, error } = await auth.signUp({
+      email: signUpEmail,
+      password: signUpPassword,
+      options: {
+        data: {
+          full_name: signUpFullName,
+          username: signUpUsername,
+        }
+      }
     });
 
     if (error) {
