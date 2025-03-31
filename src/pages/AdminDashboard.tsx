@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -19,6 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import BookForm from "@/components/admin/BookForm";
+import { admin } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "@/components/ui/sonner";
 
 // Mock data for analytics
 const analyticsData = [
@@ -78,16 +84,46 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [searchBooks, setSearchBooks] = useState("");
   const [searchUsers, setSearchUsers] = useState("");
+  const [isAddBookDialogOpen, setIsAddBookDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const filteredBooks = mockBooks.filter(book => 
+  // Fetch books using the API
+  const { data: booksData, refetch: refetchBooks, isLoading: isLoadingBooks } = useQuery({
+    queryKey: ["admin-books"],
+    queryFn: async () => {
+      // This is mock implementation since we don't have a specific admin.getBooks endpoint
+      // In a real app, you would use an actual API call
+      return mockBooks;
+    },
+  });
+
+  const filteredBooks = booksData?.filter(book => 
     book.title.toLowerCase().includes(searchBooks.toLowerCase()) ||
     book.author.toLowerCase().includes(searchBooks.toLowerCase())
-  );
+  ) || [];
 
   const filteredUsers = mockUsers.filter(user => 
     user.name.toLowerCase().includes(searchUsers.toLowerCase()) ||
     user.email.toLowerCase().includes(searchUsers.toLowerCase())
   );
+
+  const handleAddBook = async (bookData: any) => {
+    setIsSubmitting(true);
+    try {
+      const { book, error } = await admin.createBook(bookData);
+      if (error) {
+        throw error;
+      }
+      toast.success(`Book "${book.title}" created successfully!`);
+      setIsAddBookDialogOpen(false);
+      refetchBooks();
+    } catch (error) {
+      console.error("Failed to create book:", error);
+      toast.error("Failed to create book. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -191,7 +227,10 @@ const AdminDashboard = () => {
         <TabsContent value="books" className="space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-xl font-bold">Book Library Management</h3>
-            <Button className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
+            <Button 
+              className="bg-quicklit-purple hover:bg-quicklit-dark-purple"
+              onClick={() => setIsAddBookDialogOpen(true)}
+            >
               Add New Book
             </Button>
           </div>
@@ -216,22 +255,32 @@ const AdminDashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredBooks.map((book) => (
-                  <TableRow key={book.id}>
-                    <TableCell className="font-medium">{book.title}</TableCell>
-                    <TableCell>{book.author}</TableCell>
-                    <TableCell>{book.category}</TableCell>
-                    <TableCell>{book.readTime} min</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm">
-                        Edit
-                      </Button>
-                      <Button variant="ghost" size="sm" className="text-red-500">
-                        Delete
-                      </Button>
-                    </TableCell>
+                {isLoadingBooks ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-4">Loading books...</TableCell>
                   </TableRow>
-                ))}
+                ) : filteredBooks.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-4">No books found</TableCell>
+                  </TableRow>
+                ) : (
+                  filteredBooks.map((book) => (
+                    <TableRow key={book.id}>
+                      <TableCell className="font-medium">{book.title}</TableCell>
+                      <TableCell>{book.author}</TableCell>
+                      <TableCell>{book.category}</TableCell>
+                      <TableCell>{book.readTime} min</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm">
+                          Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" className="text-red-500">
+                          Delete
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>
@@ -370,6 +419,19 @@ const AdminDashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Add Book Dialog */}
+      <Dialog open={isAddBookDialogOpen} onOpenChange={setIsAddBookDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Add New Book</DialogTitle>
+            <DialogDescription>
+              Fill in the book details below to add a new book to the library.
+            </DialogDescription>
+          </DialogHeader>
+          <BookForm onSubmit={handleAddBook} isSubmitting={isSubmitting} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -382,5 +444,41 @@ const Label = ({ htmlFor, children }: { htmlFor: string, children: React.ReactNo
     </label>
   );
 };
+
+// Mock data for books
+const mockBooks: Book[] = [
+  {
+    id: "1",
+    title: "Atomic Habits",
+    author: "James Clear",
+    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
+    category: "Self-Improvement",
+    readTime: 15
+  },
+  {
+    id: "2",
+    title: "Thinking, Fast and Slow",
+    author: "Daniel Kahneman",
+    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
+    category: "Psychology",
+    readTime: 16
+  },
+  {
+    id: "3",
+    title: "Sapiens",
+    author: "Yuval Noah Harari",
+    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
+    category: "History",
+    readTime: 17
+  },
+  {
+    id: "4",
+    title: "Deep Work",
+    author: "Cal Newport",
+    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
+    category: "Productivity",
+    readTime: 14
+  },
+];
 
 export default AdminDashboard;

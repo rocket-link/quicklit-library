@@ -44,6 +44,19 @@ const AdminSidebar = () => {
     return location.pathname.startsWith(path);
   };
 
+  const handleMenuItemClick = (path: string) => {
+    // For the main admin path, we just navigate
+    if (path === "/admin") return;
+    
+    // For other paths, we extract the tab name
+    const tabName = path.split('/').pop();
+    
+    // Store in session storage so AdminDashboard can use it
+    if (tabName) {
+      sessionStorage.setItem('adminActiveTab', tabName);
+    }
+  };
+
   return (
     <div className="w-64 h-screen border-r bg-sidebar">
       <div className="flex flex-col h-full px-4 py-6">
@@ -56,7 +69,8 @@ const AdminSidebar = () => {
           {menuItems.map((item, index) => (
             <Link
               key={index}
-              to={item.path}
+              to={item.path === "/admin" ? item.path : "/admin"}
+              onClick={() => handleMenuItemClick(item.path)}
               className={`flex items-center px-3 py-2 rounded-md group ${
                 isActive(item.path)
                   ? "bg-quicklit-purple text-white"
@@ -73,14 +87,24 @@ const AdminSidebar = () => {
         <div className="p-4 mb-6 border rounded-lg shadow-sm bg-background">
           <h4 className="mb-2 text-sm font-medium">Quick Actions</h4>
           <div className="space-y-2">
-            <button className="flex items-center w-full px-3 py-2 text-sm text-left text-gray-700 rounded-md hover:bg-gray-100">
+            <button 
+              onClick={() => {
+                sessionStorage.setItem('adminActiveTab', 'books');
+                sessionStorage.setItem('openAddBookDialog', 'true');
+                window.location.href = '/admin';
+              }}
+              className="flex items-center w-full px-3 py-2 text-sm text-left text-gray-700 rounded-md hover:bg-gray-100"
+            >
               <Plus className="w-4 h-4 mr-2" />
               <span>Add New Book</span>
             </button>
-            <button className="flex items-center w-full px-3 py-2 text-sm text-left text-gray-700 rounded-md hover:bg-gray-100">
+            <Link
+              to="/library"
+              className="flex items-center w-full px-3 py-2 text-sm text-left text-gray-700 rounded-md hover:bg-gray-100"
+            >
               <Library className="w-4 h-4 mr-2" />
               <span>View Library</span>
-            </button>
+            </Link>
           </div>
         </div>
 
