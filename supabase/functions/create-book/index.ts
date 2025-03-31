@@ -51,14 +51,10 @@ serve(async (req) => {
       throw new Error('Invalid authorization token')
     }
     
-    // Check if user has admin role
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-      
-    if (userError || !userData || userData.role !== 'admin') {
+    // Check if user has admin role in user metadata
+    const userRole = user.user_metadata?.role
+    
+    if (userRole !== 'admin') {
       throw new Error('User does not have admin privileges')
     }
     
@@ -175,4 +171,3 @@ serve(async (req) => {
     )
   }
 })
-
