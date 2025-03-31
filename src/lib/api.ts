@@ -1,3 +1,4 @@
+
 // Import Supabase client
 import { supabase } from './supabase';
 import type { Book } from '../types/book';
@@ -47,10 +48,10 @@ export const admin = {
         published_year: bookData.published_year || new Date().getFullYear(),
         author_name: bookData.author_name || null,
         category_ids: bookData.category_ids || [],
+        cover_image_url: null, // Add this property to fix the TypeScript error
       };
       
       // If we have a cover image, we need to upload it first
-      let coverImageUrl = null;
       if (bookData.cover_image) {
         // Generate a unique filename
         const timestamp = new Date().getTime();
@@ -72,8 +73,7 @@ export const admin = {
           .from('book_covers')
           .getPublicUrl(filePath);
         
-        coverImageUrl = urlData?.publicUrl;
-        payload.cover_image_url = coverImageUrl;
+        payload.cover_image_url = urlData?.publicUrl || null;
       }
       
       // Call the Edge function to create the book with admin privileges
