@@ -10,74 +10,92 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import BookCard from "@/components/BookCard";
+import { useQuery } from "@tanstack/react-query";
+import { dashboard, summaries } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import { useNavigate } from "react-router-dom";
 import { Book } from "@/types/book";
-
-// Mock data for user dashboard
-const READING_PROGRESS = 68;
-const TOTAL_BOOKS_READ = 12;
-const READING_STREAK = 5;
-const TOTAL_READING_TIME = 186;
-
-// Mock recommended books
-const RECOMMENDED_BOOKS: Book[] = [
-  {
-    id: "5",
-    title: "The Psychology of Money",
-    author: "Morgan Housel",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41r6F2LRf8L._SX329_BO1,204,203,200_.jpg",
-    category: "Finance",
-    readTime: 15
-  },
-  {
-    id: "6",
-    title: "Mindset",
-    author: "Carol S. Dweck",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41j2-Rz1jiL._SX322_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 14
-  },
-  {
-    id: "7",
-    title: "Essentialism",
-    author: "Greg McKeown",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41YMJNG1IVL._SX331_BO1,204,203,200_.jpg",
-    category: "Productivity",
-    readTime: 16
-  },
-  {
-    id: "8",
-    title: "Never Split the Difference",
-    author: "Chris Voss",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51yKczFDuFL._SX330_BO1,204,203,200_.jpg",
-    category: "Negotiation",
-    readTime: 15
-  }
-];
-
-// Mock in-progress books
-const IN_PROGRESS_BOOKS: (Book & { progress: number })[] = [
-  {
-    id: "1",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-    category: "Self-Improvement",
-    readTime: 15,
-    progress: 75
-  },
-  {
-    id: "3",
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-    category: "History",
-    readTime: 17,
-    progress: 30
-  }
-];
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const { user, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+
+  // Get user's dashboard data
+  const { data: dashboardData, isLoading: dashboardLoading } = useQuery({
+    queryKey: ["dashboard", user?.id],
+    queryFn: async () => {
+      const { dashboardData, error } = await dashboard.getUserDashboardData();
+      if (error) throw error;
+      return dashboardData || {
+        readingStreak: 0,
+        booksRead: 0,
+        readingTime: 0,
+        yearlyGoal: { current: 0, target: 20 }
+      };
+    },
+    enabled: !!user
+  });
+
+  // Get in-progress books
+  const { data: inProgressBooks, isLoading: inProgressLoading } = useQuery({
+    queryKey: ["in-progress", user?.id],
+    queryFn: async () => {
+      // This would ideally be a specific API endpoint, using getAllSummaries as a proxy
+      const { summaries: data } = await summaries.getAllSummaries(1, 5);
+      
+      // Transform data to match the needed format with progress
+      // In a real app, this would come from the API with actual progress data
+      return (data || []).slice(0, 2).map((summary, index) => ({
+        id: summary.id,
+        title: summary.title || summary.books?.title || "Unknown Title",
+        author: summary.books?.authors?.name || "Unknown Author",
+        coverImage: summary.books?.cover_image_url || "/placeholder.svg",
+        category: "In Progress",
+        readTime: summary.reading_time || 15,
+        progress: index === 0 ? 75 : 30 // Mock progress, would come from API
+      }));
+    },
+    enabled: !!user
+  });
+
+  // Get recommended books
+  const { data: recommendedBooks, isLoading: recommendedLoading } = useQuery({
+    queryKey: ["recommended", user?.id],
+    queryFn: async () => {
+      // Again, ideally a specific recommendation endpoint
+      const { summaries: data } = await summaries.getAllSummaries(1, 4);
+      
+      return (data || []).map(summary => ({
+        id: summary.id,
+        title: summary.title || summary.books?.title || "Unknown Title",
+        author: summary.books?.authors?.name || "Unknown Author",
+        coverImage: summary.books?.cover_image_url || "/placeholder.svg",
+        category: "Recommended",
+        readTime: summary.reading_time || 15
+      }));
+    }
+  });
+
+  const isLoading = authLoading || dashboardLoading || inProgressLoading || recommendedLoading;
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  // If user is not authenticated, redirect to login
+  if (!user && !authLoading) {
+    navigate('/auth');
+    return null;
+  }
+
+  // Stats from dashboard data or defaults
+  const READING_STREAK = dashboardData?.readingStreak || 0;
+  const TOTAL_BOOKS_READ = dashboardData?.booksRead || 0;
+  const TOTAL_READING_TIME = dashboardData?.readingTime || 0;
+  const READING_PROGRESS = dashboardData?.yearlyGoal ? 
+    Math.round((dashboardData.yearlyGoal.current / dashboardData.yearlyGoal.target) * 100) : 0;
 
   return (
     <div className="container px-4 py-8 mx-auto md:px-6">
@@ -141,7 +159,9 @@ const Dashboard = () => {
               <CardContent>
                 <div className="text-2xl font-bold">{READING_PROGRESS}%</div>
                 <Progress value={READING_PROGRESS} className="h-2 mt-2" />
-                <p className="mt-1 text-xs text-gray-500">{TOTAL_BOOKS_READ}/20 books</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  {dashboardData?.yearlyGoal?.current || 0}/{dashboardData?.yearlyGoal?.target || 20} books
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -150,7 +170,7 @@ const Dashboard = () => {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold">Continue Reading</h2>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2">
-              {IN_PROGRESS_BOOKS.map((book) => (
+              {inProgressBooks && inProgressBooks.length > 0 ? inProgressBooks.map((book) => (
                 <Card key={book.id} className="overflow-hidden">
                   <div className="flex h-full">
                     <div className="flex-shrink-0 w-1/3">
@@ -172,13 +192,20 @@ const Dashboard = () => {
                         </div>
                         <p className="text-xs text-gray-500">{book.progress}% complete</p>
                       </div>
-                      <button className="mt-4 text-sm font-medium text-quicklit-purple hover:text-quicklit-dark-purple">
+                      <button 
+                        onClick={() => navigate(`/book/${book.id}`)}
+                        className="mt-4 text-sm font-medium text-quicklit-purple hover:text-quicklit-dark-purple"
+                      >
                         Continue Reading
                       </button>
                     </div>
                   </div>
                 </Card>
-              ))}
+              )) : (
+                <p className="col-span-2 text-center text-gray-500">
+                  No books in progress. Start reading from the library!
+                </p>
+              )}
             </div>
           </div>
 
@@ -186,9 +213,13 @@ const Dashboard = () => {
           <div className="space-y-4">
             <h2 className="text-2xl font-bold">Recommended for You</h2>
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4">
-              {RECOMMENDED_BOOKS.slice(0, 4).map((book) => (
+              {recommendedBooks && recommendedBooks.length > 0 ? recommendedBooks.map((book) => (
                 <BookCard key={book.id} book={book} />
-              ))}
+              )) : (
+                <p className="col-span-4 text-center text-gray-500">
+                  No recommendations available. Check back soon!
+                </p>
+              )}
             </div>
           </div>
         </TabsContent>
@@ -196,7 +227,7 @@ const Dashboard = () => {
         <TabsContent value="in-progress" className="space-y-4">
           <h2 className="text-2xl font-bold">Books In Progress</h2>
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            {IN_PROGRESS_BOOKS.map((book) => (
+            {inProgressBooks && inProgressBooks.length > 0 ? inProgressBooks.map((book) => (
               <Card key={book.id} className="overflow-hidden">
                 <div className="flex h-full">
                   <div className="flex-shrink-0 w-1/3">
@@ -218,22 +249,33 @@ const Dashboard = () => {
                       </div>
                       <p className="text-xs text-gray-500">{book.progress}% complete</p>
                     </div>
-                    <button className="mt-4 text-sm font-medium text-quicklit-purple hover:text-quicklit-dark-purple">
+                    <button 
+                      onClick={() => navigate(`/book/${book.id}`)}
+                      className="mt-4 text-sm font-medium text-quicklit-purple hover:text-quicklit-dark-purple"
+                    >
                       Continue Reading
                     </button>
                   </div>
                 </div>
               </Card>
-            ))}
+            )) : (
+              <p className="col-span-2 text-center text-gray-500">
+                No books in progress. Start reading from the library!
+              </p>
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="recommended" className="space-y-4">
           <h2 className="text-2xl font-bold">Recommended for You</h2>
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-4">
-            {RECOMMENDED_BOOKS.map((book) => (
+            {recommendedBooks && recommendedBooks.length > 0 ? recommendedBooks.map((book) => (
               <BookCard key={book.id} book={book} />
-            ))}
+            )) : (
+              <p className="col-span-4 text-center text-gray-500">
+                No recommendations available. Check back soon!
+              </p>
+            )}
           </div>
         </TabsContent>
       </Tabs>

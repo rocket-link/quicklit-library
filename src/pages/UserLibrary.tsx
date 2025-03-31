@@ -11,122 +11,54 @@ import {
 import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import BookCard from "@/components/BookCard";
+import { useQuery } from "@tanstack/react-query";
+import { summaries, categories } from "@/lib/api";
+import LoadingSpinner from "@/components/LoadingSpinner";
 import { Book } from "@/types/book";
-
-// Mock library books data
-const LIBRARY_BOOKS: Book[] = [
-  {
-    id: "1",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-    category: "Self-Improvement",
-    readTime: 15
-  },
-  {
-    id: "2",
-    title: "Thinking, Fast and Slow",
-    author: "Daniel Kahneman",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 16
-  },
-  {
-    id: "3",
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-    category: "History",
-    readTime: 17
-  },
-  {
-    id: "4",
-    title: "Deep Work",
-    author: "Cal Newport",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
-    category: "Productivity",
-    readTime: 14
-  },
-  {
-    id: "5",
-    title: "The Psychology of Money",
-    author: "Morgan Housel",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41r6F2LRf8L._SX329_BO1,204,203,200_.jpg",
-    category: "Finance",
-    readTime: 15
-  },
-  {
-    id: "6",
-    title: "Mindset",
-    author: "Carol S. Dweck",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41j2-Rz1jiL._SX322_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 14
-  },
-  {
-    id: "7",
-    title: "Essentialism",
-    author: "Greg McKeown",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41YMJNG1IVL._SX331_BO1,204,203,200_.jpg",
-    category: "Productivity",
-    readTime: 16
-  },
-  {
-    id: "8",
-    title: "Never Split the Difference",
-    author: "Chris Voss",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51yKczFDuFL._SX330_BO1,204,203,200_.jpg",
-    category: "Negotiation",
-    readTime: 15
-  },
-  {
-    id: "9",
-    title: "Outliers",
-    author: "Malcolm Gladwell",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41LO6QRvIuL._SX302_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 15
-  },
-  {
-    id: "10",
-    title: "Range",
-    author: "David Epstein",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41ojVxguwnL._SX329_BO1,204,203,200_.jpg",
-    category: "Science",
-    readTime: 16
-  },
-  {
-    id: "11",
-    title: "The Almanack of Naval Ravikant",
-    author: "Eric Jorgenson",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41AhNnxufEL._SX331_BO1,204,203,200_.jpg",
-    category: "Philosophy",
-    readTime: 14
-  },
-  {
-    id: "12",
-    title: "Grit",
-    author: "Angela Duckworth",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51r1FcXQ7nL._SX330_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 15
-  }
-];
-
-// Unique categories
-const CATEGORIES = [...new Set(LIBRARY_BOOKS.map(book => book.category))];
 
 const UserLibrary = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [sortBy, setSortBy] = useState("title");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Filter and sort books
-  const filteredBooks = LIBRARY_BOOKS.filter((book) => {
+  const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const { categories: data } = await categories.getAllCategories();
+      return data || [];
+    }
+  });
+
+  const { 
+    data: booksData, 
+    isLoading: booksLoading,
+    refetch
+  } = useQuery({
+    queryKey: ["summaries", currentPage, categoryFilter],
+    queryFn: async () => {
+      const filter = categoryFilter ? { category: categoryFilter } : undefined;
+      const { summaries: data } = await summaries.getAllSummaries(currentPage, 12, filter);
+      
+      return data?.map(summary => ({
+        id: summary.id,
+        title: summary.title || summary.books?.title || "Unknown Title",
+        author: summary.books?.authors?.name || "Unknown Author",
+        coverImage: summary.books?.cover_image_url || "/placeholder.svg",
+        category: "Book Summary", // Would ideally come from the API
+        readTime: summary.reading_time || 15,
+        isPremium: summary.is_premium
+      })) || [];
+    }
+  });
+  
+  // Search client-side if we have the data loaded
+  const filteredBooks = booksData ? booksData.filter((book) => {
+    if (!searchTerm) return true;
     return (
       book.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
       book.author.toLowerCase().includes(searchTerm.toLowerCase())
-    ) && (categoryFilter === "" || book.category === categoryFilter);
+    );
   }).sort((a, b) => {
     if (sortBy === "title") {
       return a.title.localeCompare(b.title);
@@ -136,7 +68,19 @@ const UserLibrary = () => {
       // sort by read time
       return a.readTime - b.readTime;
     }
-  });
+  }) : [];
+
+  const handleSearch = () => {
+    setCurrentPage(1);
+    refetch();
+  };
+
+  const handleCategoryChange = (value: string) => {
+    setCategoryFilter(value);
+    setCurrentPage(1);
+  };
+  
+  const isLoading = booksLoading || categoriesLoading;
 
   return (
     <div className="container px-4 py-8 mx-auto md:px-6">
@@ -151,18 +95,19 @@ const UserLibrary = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
+            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
         
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select value={categoryFilter} onValueChange={handleCategoryChange}>
           <SelectTrigger>
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All Categories</SelectItem>
-            {CATEGORIES.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
+            {categoriesData?.map((category) => (
+              <SelectItem key={category.id} value={category.id}>
+                {category.name}
               </SelectItem>
             ))}
           </SelectContent>
@@ -181,7 +126,9 @@ const UserLibrary = () => {
       </div>
 
       {/* Books Grid */}
-      {filteredBooks.length > 0 ? (
+      {isLoading ? (
+        <LoadingSpinner />
+      ) : filteredBooks && filteredBooks.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {filteredBooks.map((book) => (
             <BookCard key={book.id} book={book} />
@@ -198,6 +145,25 @@ const UserLibrary = () => {
             }}
           >
             Clear Filters
+          </Button>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && booksData && booksData.length > 0 && (
+        <div className="flex justify-center mt-8 space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <Button 
+            variant="outline"
+            onClick={() => setCurrentPage(p => p + 1)}
+          >
+            Next
           </Button>
         </div>
       )}

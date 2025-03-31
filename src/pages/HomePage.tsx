@@ -5,42 +5,10 @@ import { BookOpen, BookAudio, Clock } from "lucide-react";
 import { motion } from "framer-motion";
 import BookCard from "@/components/BookCard";
 import PricingSection from "@/components/PricingSection";
-
-// Temporarily mocked data for featured books
-const FEATURED_BOOKS = [
-  {
-    id: "1",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-    category: "Self-Improvement",
-    readTime: 15
-  },
-  {
-    id: "2",
-    title: "Thinking, Fast and Slow",
-    author: "Daniel Kahneman",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 16
-  },
-  {
-    id: "3",
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-    category: "History",
-    readTime: 17
-  },
-  {
-    id: "4",
-    title: "Deep Work",
-    author: "Cal Newport",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
-    category: "Productivity",
-    readTime: 14
-  }
-];
+import { useQuery } from "@tanstack/react-query";
+import { summaries } from "@/lib/api";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import { useAuth } from "@/contexts/AuthContext";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -49,6 +17,23 @@ const fadeIn = {
 };
 
 const HomePage = () => {
+  const { user } = useAuth();
+  
+  const { data: featuredBooks, isLoading } = useQuery({
+    queryKey: ["featured-summaries"],
+    queryFn: async () => {
+      const { summaries: data } = await summaries.getAllSummaries(1, 4);
+      return data?.map(summary => ({
+        id: summary.id,
+        title: summary.title,
+        author: summary.books?.authors?.name || "Unknown Author",
+        coverImage: summary.books?.cover_image_url || "/placeholder.svg",
+        category: "Featured", // This would ideally come from the API
+        readTime: summary.reading_time || 15
+      })) || [];
+    }
+  });
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
@@ -69,11 +54,19 @@ const HomePage = () => {
                 Read or listen to summaries curated by our AI and expert team.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Link to="/auth?signup=true">
-                  <Button size="lg" className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
-                    Start Free Trial
-                  </Button>
-                </Link>
+                {!user ? (
+                  <Link to="/auth?signup=true">
+                    <Button size="lg" className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
+                      Start Free Trial
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link to="/dashboard">
+                    <Button size="lg" className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
+                      Go to Dashboard
+                    </Button>
+                  </Link>
+                )}
                 <Link to="/library">
                   <Button size="lg" variant="outline">
                     Explore Library
@@ -92,13 +85,13 @@ const HomePage = () => {
                 <div className="absolute -inset-1 bg-gradient-to-r from-quicklit-purple to-quicklit-dark-purple rounded-lg blur-lg opacity-25"></div>
                 <div className="relative bg-white rounded-lg shadow-xl p-6">
                   <img 
-                    src="https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg" 
+                    src={featuredBooks?.[0]?.coverImage || "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg"} 
                     alt="Featured Book" 
                     className="w-48 h-64 object-cover mx-auto rounded-md shadow-md"
                   />
                   <div className="mt-4 text-center">
-                    <h3 className="font-bold">Atomic Habits</h3>
-                    <p className="text-sm text-gray-500">by James Clear</p>
+                    <h3 className="font-bold">{featuredBooks?.[0]?.title || "Atomic Habits"}</h3>
+                    <p className="text-sm text-gray-500">by {featuredBooks?.[0]?.author || "James Clear"}</p>
                   </div>
                 </div>
               </div>
@@ -178,25 +171,27 @@ const HomePage = () => {
             </Link>
           </motion.div>
           
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURED_BOOKS.map((book, index) => (
-              <motion.div
-                key={book.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 * index }}
-              >
-                <BookCard book={book} />
-              </motion.div>
-            ))}
-          </div>
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+              {(featuredBooks && featuredBooks.length > 0 ? featuredBooks : []).map((book, index) => (
+                <motion.div
+                  key={book.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.1 * index }}
+                >
+                  <BookCard book={book} />
+                </motion.div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
       {/* Pricing Section */}
       <PricingSection />
-
-      {/* Testimonials or other sections would go here */}
     </div>
   );
 };

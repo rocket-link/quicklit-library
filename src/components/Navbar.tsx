@@ -1,121 +1,102 @@
 
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BookOpen, Menu, X } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { BookOpen } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Navbar = () => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const isMobile = useIsMobile();
-  const location = useLocation();
-  
-  // Mock auth state - would be replaced with actual auth
-  const isAuthenticated = false;
+  const { user, signOut } = useAuth();
 
-  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
-
-  const navLinks = [
-    { to: "/", label: "Home", requiresAuth: false },
-    { to: "/dashboard", label: "Dashboard", requiresAuth: true },
-    { to: "/library", label: "My Library", requiresAuth: true },
-  ];
-
-  // Filter links based on auth state
-  const filteredLinks = navLinks.filter(
-    (link) => !link.requiresAuth || (link.requiresAuth && isAuthenticated)
-  );
+  // Get user's initials for avatar fallback
+  const getInitials = () => {
+    if (!user) return "G";
+    if (user.user_metadata?.full_name) {
+      return user.user_metadata.full_name
+        .split(" ")
+        .map((n: string) => n[0])
+        .join("")
+        .toUpperCase();
+    }
+    return user.email?.[0].toUpperCase() || "U";
+  };
 
   return (
-    <nav className="sticky top-0 z-40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border">
-      <div className="container flex items-center justify-between h-16 px-4 mx-auto md:px-8">
-        <Link to="/" className="flex items-center space-x-2">
-          <BookOpen className="w-8 h-8 text-quicklit-purple" />
-          <span className="text-xl font-bold">QuickLit</span>
-        </Link>
+    <header className="bg-white border-b">
+      <div className="container flex items-center justify-between h-16 px-4 mx-auto md:px-6">
+        <div className="flex items-center space-x-4">
+          <Link to="/" className="flex items-center space-x-2">
+            <BookOpen className="w-6 h-6 text-quicklit-purple" />
+            <span className="text-xl font-bold">QuickLit</span>
+          </Link>
+          
+          <nav className="hidden space-x-4 md:flex">
+            <Link to="/" className="text-sm font-medium hover:text-quicklit-purple">Home</Link>
+            <Link to="/library" className="text-sm font-medium hover:text-quicklit-purple">Library</Link>
+            {user && (
+              <Link to="/dashboard" className="text-sm font-medium hover:text-quicklit-purple">Dashboard</Link>
+            )}
+          </nav>
+        </div>
 
-        {/* Desktop Navigation */}
-        {!isMobile && (
-          <div className="flex items-center space-x-6">
-            {filteredLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-sm font-medium transition-colors hover:text-quicklit-purple ${
-                  location.pathname === link.to ? "text-quicklit-purple" : "text-foreground"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* Auth Buttons or User Menu */}
-        <div className="flex items-center space-x-3">
-          {!isAuthenticated ? (
+        <div className="flex items-center space-x-4">
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="relative w-8 h-8 rounded-full">
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email || ""} />
+                    <AvatarFallback className="bg-quicklit-purple text-white">
+                      {getInitials()}
+                    </AvatarFallback>
+                  </Avatar>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end">
+                <DropdownMenuLabel>
+                  {user.user_metadata?.full_name || user.email}
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to="/profile">Profile</Link>
+                </DropdownMenuItem>
+                {user.user_metadata?.role === 'admin' && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/admin">Admin Dashboard</Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => signOut()}>
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
             <>
-              {!isMobile && (
-                <Link to="/auth">
-                  <Button variant="ghost" size="sm">Log in</Button>
-                </Link>
-              )}
+              <Link to="/auth">
+                <Button variant="ghost">Sign In</Button>
+              </Link>
               <Link to="/auth?signup=true">
-                <Button size="sm" className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
-                  Sign up
+                <Button className="bg-quicklit-purple hover:bg-quicklit-dark-purple">
+                  Sign Up
                 </Button>
               </Link>
             </>
-          ) : (
-            <Button variant="ghost" size="icon">
-              {/* Avatar would go here */}
-            </Button>
-          )}
-
-          {/* Mobile Menu Button */}
-          {isMobile && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleMenu}
-              className="ml-2"
-              aria-label="Toggle Menu"
-            >
-              {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-            </Button>
           )}
         </div>
       </div>
-
-      {/* Mobile Menu */}
-      {isMobile && isMenuOpen && (
-        <div className="fixed inset-0 top-16 z-50 bg-background border-t">
-          <div className="flex flex-col p-4 space-y-4">
-            {filteredLinks.map((link) => (
-              <Link
-                key={link.to}
-                to={link.to}
-                className={`text-lg font-medium p-2 ${
-                  location.pathname === link.to ? "text-quicklit-purple" : "text-foreground"
-                }`}
-                onClick={() => setIsMenuOpen(false)}
-              >
-                {link.label}
-              </Link>
-            ))}
-            {!isAuthenticated && (
-              <Link
-                to="/auth"
-                className="text-lg font-medium p-2"
-                onClick={() => setIsMenuOpen(false)}
-              >
-                Log in
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-    </nav>
+    </header>
   );
 };
 
