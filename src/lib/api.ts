@@ -62,27 +62,54 @@ export const admin = {
       
       // If we have a cover image, we need to upload it first
       if (bookData.cover_image) {
-        // Generate a unique filename
-        const timestamp = new Date().getTime();
-        const fileExt = bookData.cover_image.name.split('.').pop();
-        const fileName = `${timestamp}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-        const filePath = `book_covers/${fileName}`;
-        
-        // Upload the image to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase
-          .storage
-          .from('book_covers')
-          .upload(filePath, bookData.cover_image);
-        
-        if (uploadError) throw uploadError;
-        
-        // Get the public URL of the uploaded image
-        const { data: urlData } = supabase
-          .storage
-          .from('book_covers')
-          .getPublicUrl(filePath);
-        
-        payload.cover_image_url = urlData?.publicUrl || null;
+        try {
+          // Generate a unique filename
+          const timestamp = new Date().getTime();
+          const fileExt = bookData.cover_image.name.split('.').pop();
+          const fileName = `${timestamp}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+          const filePath = `covers/${fileName}`;
+          
+          // Check if bucket exists and create if needed
+          const { data: buckets } = await supabase
+            .storage
+            .listBuckets();
+            
+          const bucketExists = buckets?.some(bucket => bucket.name === 'book_covers');
+          
+          if (!bucketExists) {
+            // Create the bucket if it doesn't exist
+            const { error: createBucketError } = await supabase
+              .storage
+              .createBucket('book_covers', {
+                public: true, // Make the bucket public
+                fileSizeLimit: 10485760 // 10MB file size limit
+              });
+            
+            if (createBucketError) {
+              console.error("Error creating bucket:", createBucketError);
+              throw createBucketError;
+            }
+          }
+          
+          // Upload the image to Supabase Storage
+          const { data: uploadData, error: uploadError } = await supabase
+            .storage
+            .from('book_covers')
+            .upload(filePath, bookData.cover_image);
+          
+          if (uploadError) throw uploadError;
+          
+          // Get the public URL of the uploaded image
+          const { data: urlData } = supabase
+            .storage
+            .from('book_covers')
+            .getPublicUrl(filePath);
+          
+          payload.cover_image_url = urlData?.publicUrl || null;
+        } catch (storageError) {
+          console.error("Storage error:", storageError);
+          // Continue without image if there's an error with storage
+        }
       }
       
       // Call the Edge function with authorization header to create the book
@@ -119,7 +146,7 @@ export const admin = {
       console.error("API error creating book:", error);
       return {
         book: null,
-        error: "Failed to create book"
+        error: error instanceof Error ? error.message : "Failed to create book"
       };
     }
   }
