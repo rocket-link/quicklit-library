@@ -1,3 +1,4 @@
+
 // Import Supabase client
 import { supabase } from './supabase';
 import type { Book } from '../types/book';
@@ -63,24 +64,38 @@ export const admin = {
       // If we have a cover image, we need to upload it first
       if (bookData.cover_image) {
         try {
+          console.log("Uploading cover image:", bookData.cover_image.name);
+          
           // Generate a unique filename
           const timestamp = new Date().getTime();
           const fileExt = bookData.cover_image.name.split('.').pop();
           const fileName = `${timestamp}-${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-          const filePath = `covers/${fileName}`;
           
-          // Check if bucket exists and create if needed
-          const { data: buckets } = await supabase
+          // IMPORTANT: Use the same path structure consistently - the file path should match the bucket structure
+          const filePath = `${fileName}`; // Don't include 'covers/' prefix in the file path
+          const bucketName = 'book_covers';
+          
+          console.log("Checking if bucket exists:", bucketName);
+          
+          // First check if the bucket exists
+          const { data: buckets, error: bucketError } = await supabase
             .storage
             .listBuckets();
-            
-          const bucketExists = buckets?.some(bucket => bucket.name === 'book_covers');
+          
+          if (bucketError) {
+            console.error("Error listing buckets:", bucketError);
+            throw bucketError;
+          }
+          
+          const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+          console.log("Bucket exists:", bucketExists);
           
           if (!bucketExists) {
+            console.log("Creating bucket:", bucketName);
             // Create the bucket if it doesn't exist
             const { error: createBucketError } = await supabase
               .storage
-              .createBucket('book_covers', {
+              .createBucket(bucketName, {
                 public: true, // Make the bucket public
                 fileSizeLimit: 10485760 // 10MB file size limit
               });
@@ -89,28 +104,46 @@ export const admin = {
               console.error("Error creating bucket:", createBucketError);
               throw createBucketError;
             }
+            
+            console.log("Bucket created successfully");
+            
+            // Small delay to ensure bucket is fully created before upload
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
+          
+          console.log("Uploading file to bucket:", bucketName, "path:", filePath);
           
           // Upload the image to Supabase Storage
           const { data: uploadData, error: uploadError } = await supabase
             .storage
-            .from('book_covers')
-            .upload(filePath, bookData.cover_image);
+            .from(bucketName)
+            .upload(filePath, bookData.cover_image, {
+              cacheControl: '3600',
+              upsert: true
+            });
           
-          if (uploadError) throw uploadError;
+          if (uploadError) {
+            console.error("Upload error:", uploadError);
+            throw uploadError;
+          }
+          
+          console.log("Upload successful, getting public URL");
           
           // Get the public URL of the uploaded image
           const { data: urlData } = supabase
             .storage
-            .from('book_covers')
+            .from(bucketName)
             .getPublicUrl(filePath);
           
+          console.log("Public URL:", urlData?.publicUrl);
           payload.cover_image_url = urlData?.publicUrl || null;
         } catch (storageError) {
           console.error("Storage error:", storageError);
           // Continue without image if there's an error with storage
         }
       }
+      
+      console.log("Calling Edge function with payload:", payload);
       
       // Call the Edge function with authorization header to create the book
       const { data, error } = await supabase.functions.invoke('create-book', {
@@ -125,6 +158,8 @@ export const admin = {
       if (!data || !data.book) {
         throw new Error('No book data returned from Edge function');
       }
+      
+      console.log("Book created successfully:", data.book);
       
       // Transform to match expected return format
       const transformedBook = {

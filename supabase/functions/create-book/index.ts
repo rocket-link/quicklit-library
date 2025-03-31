@@ -51,12 +51,16 @@ serve(async (req) => {
       throw new Error('Invalid authorization token')
     }
     
-    // Check if user has admin role in user metadata
+    // Check if user has admin role in user_metadata
     const userRole = user.user_metadata?.role
     
     if (userRole !== 'admin') {
       throw new Error('User does not have admin privileges')
     }
+    
+    console.log("Validated admin user, creating book with data:", { 
+      title, description, isbn, published_year, cover_image_url 
+    });
     
     // First, create the book entry
     const bookPayload = {
@@ -77,7 +81,10 @@ serve(async (req) => {
       .select()
       .single()
     
-    if (bookError) throw bookError
+    if (bookError) {
+      console.error("Error inserting book:", bookError);
+      throw bookError;
+    }
     
     // If we have author info, we need to create or find the author
     if (author_name) {
