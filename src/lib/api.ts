@@ -125,7 +125,6 @@ export const admin = {
   }
 };
 
-// Add other API functions as needed
 export const books = {
   getBooks: async () => {
     try {
@@ -204,7 +203,6 @@ export const users = {
   }
 };
 
-// Update summaries API to use books from our mock database
 export const summaries = {
   getAllSummaries: async (page = 1, limit = 10, filter?: any) => {
     try {
@@ -290,7 +288,6 @@ export const summaries = {
     }
   },
   
-  // Add these methods to fix the BookSummary.tsx errors
   getSummary: async (id: string) => {
     return summaries.getSummaryById(id);
   },
@@ -298,7 +295,9 @@ export const summaries = {
   toggleBookmark: async (summaryId: string) => {
     console.log("API: Toggling bookmark for summary:", summaryId);
     return {
-      success: true,
+      data: {
+        bookmarked: true // Mock response, alternating would be more realistic
+      },
       error: null
     };
   },

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,6 +47,7 @@ const BookSummary = () => {
       return summaries.toggleBookmark(id);
     },
     onSuccess: (data) => {
+      // Here we're using the updated API response structure
       setIsBookmarked(data?.data?.bookmarked || false);
       toast.success(data?.data?.bookmarked ? "Summary bookmarked" : "Bookmark removed");
     },
