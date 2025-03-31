@@ -1,13 +1,11 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery } from "@tanstack/react-query";
 import { categories } from "@/lib/api";
-import { toast } from "@/lib/toast";
+import { useToast } from "@/hooks/use-toast";
 import { BookPlus } from "lucide-react";
 
 interface BookFormProps {
@@ -31,6 +29,7 @@ export default function BookForm({ onSubmit, isSubmitting }: BookFormProps) {
   const [isbn, setIsbn] = useState("");
   const [coverImage, setCoverImage] = useState<File | null>(null);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const { toast } = useToast();
 
   const { data: categoriesData, isLoading: categoriesLoading } = useQuery({
     queryKey: ["categories"],
@@ -50,7 +49,11 @@ export default function BookForm({ onSubmit, isSubmitting }: BookFormProps) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!title) {
-      toast.error("Title is required");
+      toast({
+        title: "Error",
+        description: "Title is required",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -74,10 +77,17 @@ export default function BookForm({ onSubmit, isSubmitting }: BookFormProps) {
       setCoverImage(null);
       setSelectedCategories([]);
 
-      toast.success("Book created successfully!");
+      toast({
+        title: "Success",
+        description: "Book created successfully!",
+      });
     } catch (error) {
       console.error("Failed to create book:", error);
-      toast.error("Failed to create book. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to create book. Please try again.",
+        variant: "destructive"
+      });
     }
   };
 

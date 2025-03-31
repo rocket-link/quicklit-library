@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -23,10 +22,9 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import BookForm from "@/components/admin/BookForm";
 import { admin } from "@/lib/api";
-import { useQuery } from "@tanstack/react-query";
-import { toast } from "@/lib/toast";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
 
-// Mock data for analytics
 const analyticsData = [
   { name: 'Jan', users: 4000, readings: 2400 },
   { name: 'Feb', users: 3000, readings: 1398 },
@@ -36,7 +34,6 @@ const analyticsData = [
   { name: 'Jun', users: 2390, readings: 3800 },
 ];
 
-// Mock data for books
 const mockBooks: Book[] = [
   {
     id: "1",
@@ -72,7 +69,6 @@ const mockBooks: Book[] = [
   },
 ];
 
-// Mock users data
 const mockUsers = [
   { id: 1, name: "John Doe", email: "john@example.com", plan: "Annual", status: "Active" },
   { id: 2, name: "Jane Smith", email: "jane@example.com", plan: "Monthly", status: "Active" },
@@ -86,37 +82,37 @@ const AdminDashboard = () => {
   const [searchUsers, setSearchUsers] = useState("");
   const [isAddBookDialogOpen, setIsAddBookDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
   
-  // Check for URL params or session storage to set the active tab
   useEffect(() => {
     const storedTab = sessionStorage.getItem('adminActiveTab');
     const openAddBookDialog = sessionStorage.getItem('openAddBookDialog');
     
     if (storedTab) {
       setActiveTab(storedTab);
-      // Clear the stored tab after setting it
       sessionStorage.removeItem('adminActiveTab');
     }
     
     if (openAddBookDialog === 'true') {
       setIsAddBookDialogOpen(true);
-      // Clear the flag after opening dialog
       sessionStorage.removeItem('openAddBookDialog');
     }
   }, []);
 
-  // Fetch books using the API
   const { data: booksData, refetch: refetchBooks, isLoading: isLoadingBooks } = useQuery({
     queryKey: ["admin-books"],
     queryFn: async () => {
       try {
-        // In a real app, you would use an actual API call
-        // For now we use the mock data
         console.log("Fetching books data");
         return mockBooks;
       } catch (error) {
         console.error("Error fetching books:", error);
-        toast.error("Failed to load books");
+        toast({
+          title: "Error",
+          description: "Failed to load books",
+          variant: "destructive"
+        });
         return [];
       }
     }
@@ -137,21 +133,30 @@ const AdminDashboard = () => {
     try {
       console.log("Adding new book with data:", bookData);
       
-      // This is where we call the API to create a book
-      const { book, error } = await admin.createBook(bookData);
+      const { data, error } = await admin.createBook(bookData);
       
       if (error) {
         console.error("API returned error:", error);
-        throw error;
+        throw new Error(error.message || "Failed to create book");
       }
       
-      console.log("Book created successfully:", book);
-      toast.success(`Book "${book.title}" created successfully!`);
+      console.log("Book created successfully:", data);
+      toast({
+        title: "Success",
+        description: `Book "${bookData.title}" created successfully!`
+      });
+      
       setIsAddBookDialogOpen(false);
-      refetchBooks();
-    } catch (error) {
+      
+      await queryClient.invalidateQueries({ queryKey: ["admin-books"] });
+      await refetchBooks();
+    } catch (error: any) {
       console.error("Failed to create book:", error);
-      toast.error("Failed to create book. Please try again.");
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create book. Please try again.",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -172,7 +177,6 @@ const AdminDashboard = () => {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
-          {/* Stats Cards */}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="pb-1">
@@ -206,7 +210,6 @@ const AdminDashboard = () => {
             </Card>
           </div>
 
-          {/* Charts */}
           <Card>
             <CardHeader>
               <CardTitle>User Growth & Activity</CardTitle>
@@ -231,7 +234,6 @@ const AdminDashboard = () => {
             </CardContent>
           </Card>
 
-          {/* Recent Activity */}
           <Card>
             <CardHeader>
               <CardTitle>Recent Activity</CardTitle>
@@ -452,7 +454,6 @@ const AdminDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Add Book Dialog */}
       <Dialog open={isAddBookDialogOpen} onOpenChange={setIsAddBookDialogOpen}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
@@ -468,7 +469,6 @@ const AdminDashboard = () => {
   );
 };
 
-// Label component for the admin settings
 const Label = ({ htmlFor, children }: { htmlFor: string, children: React.ReactNode }) => {
   return (
     <label htmlFor={htmlFor} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">

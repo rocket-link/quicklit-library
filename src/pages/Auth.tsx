@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/hooks/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import OpenAIKeyForm from "@/components/OpenAIKeyForm";
 
 const Auth = () => {
@@ -20,6 +20,7 @@ const Auth = () => {
   const [signUpUsername, setSignUpUsername] = useState("");
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { toast } = useToast();
 
   const handleSignIn = async () => {
     setIsLoading(true);
