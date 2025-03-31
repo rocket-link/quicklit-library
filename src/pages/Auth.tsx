@@ -5,7 +5,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { auth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import OpenAIKeyForm from "@/components/OpenAIKeyForm";
@@ -19,15 +18,12 @@ const Auth = () => {
   const [signUpFullName, setSignUpFullName] = useState("");
   const [signUpUsername, setSignUpUsername] = useState("");
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { signIn, signUp } = useAuth();
   const { toast } = useToast();
 
   const handleSignIn = async () => {
     setIsLoading(true);
-    const { data, error } = await auth.signIn({
-      email: signInEmail,
-      password: signInPassword
-    });
+    const { error } = await signIn(signInEmail, signInPassword);
 
     if (error) {
       toast({
@@ -36,7 +32,6 @@ const Auth = () => {
         variant: "destructive",
       });
     } else {
-      signIn(data.session.access_token);
       navigate("/dashboard");
       toast({
         title: "Sign In Successful",
@@ -48,16 +43,14 @@ const Auth = () => {
 
   const handleSignUp = async () => {
     setIsLoading(true);
-    const { data, error } = await auth.signUp({
-      email: signUpEmail,
-      password: signUpPassword,
-      options: {
-        data: {
-          full_name: signUpFullName,
-          username: signUpUsername,
-        }
+    const { error } = await signUp(
+      signUpEmail, 
+      signUpPassword, 
+      {
+        full_name: signUpFullName,
+        username: signUpUsername,
       }
-    });
+    );
 
     if (error) {
       toast({
@@ -66,7 +59,6 @@ const Auth = () => {
         variant: "destructive",
       });
     } else {
-      signIn(data.session.access_token);
       navigate("/dashboard");
       toast({
         title: "Account Created",
