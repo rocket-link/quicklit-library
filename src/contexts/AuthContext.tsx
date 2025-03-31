@@ -1,9 +1,6 @@
-
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
-import { auth } from '@/lib/api';
-import { toast } from '@/components/ui/sonner';
+import React, { createContext, useState, useContext, useEffect } from 'react';
+import { auth as authApi } from '@/lib/api';
+import { toast } from '@/lib/toast';
 
 type AuthContextType = {
   session: Session | null;
@@ -43,7 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sign in with email and password
   const signIn = async (email: string, password: string) => {
     setLoading(true);
-    const { data, error } = await auth.signIn(email, password);
+    const { data, error } = await authApi.signIn(email, password);
     setLoading(false);
     if (error) toast.error("Sign in failed", { description: error.message });
     else toast.success("Signed in successfully");
@@ -53,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sign up with email and password
   const signUp = async (email: string, password: string, metadata?: { full_name?: string; username?: string }) => {
     setLoading(true);
-    const { data, error } = await auth.signUp(email, password, metadata);
+    const { data, error } = await authApi.signUp(email, password, metadata);
     setLoading(false);
     if (error) toast.error("Sign up failed", { description: error.message });
     else toast.success("Account created successfully");
@@ -63,7 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Sign out
   const signOut = async () => {
     setLoading(true);
-    const { error } = await auth.signOut();
+    const { error } = await authApi.signOut();
     setLoading(false);
     if (!error) toast.success("Signed out successfully");
     return { error };
@@ -71,7 +68,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   // Sign in with OAuth
   const signInWithOAuth = async (provider: 'google' | 'facebook' | 'twitter') => {
-    const { data, error } = await auth.signInWithOAuth(provider);
+    const { data, error } = await authApi.signInWithOAuth(provider);
     if (error) toast.error(`${provider} sign in failed`);
     return { error };
   };

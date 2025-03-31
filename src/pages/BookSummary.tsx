@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +19,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { summaries } from "@/lib/api";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "@/lib/toast";
 
 const BookSummary = () => {
   const { id } = useParams();
@@ -31,7 +30,6 @@ const BookSummary = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  // Fetch summary data
   const { data: summary, isLoading, error } = useQuery({
     queryKey: ["summary", id],
     queryFn: async () => {
@@ -42,7 +40,6 @@ const BookSummary = () => {
     }
   });
 
-  // Toggle bookmark mutation
   const toggleBookmarkMutation = useMutation({
     mutationFn: async () => {
       if (!id) throw new Error("Summary ID is required");
@@ -59,7 +56,6 @@ const BookSummary = () => {
     }
   });
 
-  // Update reading progress mutation
   const updateProgressMutation = useMutation({
     mutationFn: async (progressValue: number) => {
       if (!id) throw new Error("Summary ID is required");
@@ -70,7 +66,6 @@ const BookSummary = () => {
     }
   });
 
-  // Handle toggling bookmark
   const toggleBookmark = () => {
     if (!user) {
       toast.info("Please sign in to bookmark summaries", {
@@ -84,7 +79,6 @@ const BookSummary = () => {
     toggleBookmarkMutation.mutate();
   };
 
-  // Handle audio playback
   const toggleAudio = () => {
     if (!user && summary?.is_premium) {
       toast.info("Please sign in to access audio", {
@@ -98,13 +92,11 @@ const BookSummary = () => {
     setIsPlaying(!isPlaying);
   };
 
-  // Update progress
   const handleProgress = (newProgress: number) => {
     setProgress(newProgress);
     updateProgressMutation.mutate(newProgress);
   };
 
-  // Simulate reading progress by tracking scroll position
   useEffect(() => {
     if (activeTab !== "read") return;
     
@@ -124,7 +116,6 @@ const BookSummary = () => {
     return () => window.removeEventListener("scroll", updateProgressFromScroll);
   }, [activeTab]);
 
-  // If loading or error
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -149,13 +140,11 @@ const BookSummary = () => {
   }
 
   const isPremiumContent = summary.is_premium;
-  const canAccessPremium = user ? true : !isPremiumContent; // Simplified, ideally check subscription status
+  const canAccessPremium = user ? true : !isPremiumContent;
 
   return (
     <div className="container px-4 py-8 mx-auto md:px-6">
-      {/* Book Header */}
       <div className="grid grid-cols-1 gap-8 mb-8 md:grid-cols-3">
-        {/* Book Cover */}
         <div className="flex justify-center md:justify-start">
           <div className="relative">
             <div className="absolute -inset-1 bg-gradient-to-r from-quicklit-purple to-quicklit-dark-purple rounded-lg blur-lg opacity-25"></div>
@@ -172,7 +161,6 @@ const BookSummary = () => {
           </div>
         </div>
 
-        {/* Book Details */}
         <div className="md:col-span-2">
           <h1 className="mb-2 text-3xl font-bold md:text-4xl">{summary.title}</h1>
           {summary.subtitle && (
@@ -193,7 +181,6 @@ const BookSummary = () => {
             )}
           </div>
 
-          {/* Action Buttons */}
           <div className="flex flex-wrap gap-3">
             <Button
               onClick={toggleBookmark}
@@ -216,7 +203,6 @@ const BookSummary = () => {
         </div>
       </div>
 
-      {/* Reading Progress */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-500">Your progress</span>
@@ -225,7 +211,6 @@ const BookSummary = () => {
         <Progress value={progress} className="h-2" />
       </div>
 
-      {/* Content Tabs */}
       <Tabs
         defaultValue="read"
         value={activeTab}
@@ -245,7 +230,6 @@ const BookSummary = () => {
         </TabsList>
 
         <div className="mt-8">
-          {/* Read Tab */}
           <TabsContent value="read">
             {!canAccessPremium ? (
               <div className="flex flex-col items-center p-8 text-center bg-gray-50 rounded-lg">
@@ -269,7 +253,6 @@ const BookSummary = () => {
                   ))}
                 </div>
 
-                {/* Progress Controls */}
                 <div className="flex items-center justify-between max-w-3xl mx-auto mt-8">
                   <Button variant="ghost" size="sm" className="flex items-center text-gray-500">
                     <ArrowLeft className="w-4 h-4 mr-1" />
@@ -294,7 +277,6 @@ const BookSummary = () => {
             )}
           </TabsContent>
 
-          {/* Listen Tab */}
           <TabsContent value="listen">
             <div className="max-w-3xl mx-auto">
               {!canAccessPremium || !summary.audio_url ? (
@@ -349,7 +331,6 @@ const BookSummary = () => {
                       </Button>
                     </div>
 
-                    {/* Hidden audio element */}
                     {summary.audio_url && (
                       <audio 
                         src={summary.audio_url} 
@@ -364,7 +345,6 @@ const BookSummary = () => {
             </div>
           </TabsContent>
 
-          {/* Key Ideas Tab */}
           <TabsContent value="key-ideas">
             <div className="max-w-3xl mx-auto">
               {!canAccessPremium ? (

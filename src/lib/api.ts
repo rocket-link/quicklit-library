@@ -282,10 +282,31 @@ export const summaries = {
       }
     }
 
-    return { 
-      summary: data as Summary, 
-      error: error as Error 
-    };
+    // Transform data to match the Summary interface
+    if (data) {
+      const transformedData: Summary = {
+        id: data.id,
+        title: data.title,
+        subtitle: data.subtitle || undefined,
+        text_content: data.text_content,
+        reading_time: data.reading_time,
+        audio_url: data.audio_url || undefined,
+        audio_duration: data.audio_duration || undefined,
+        is_premium: data.is_premium,
+        book: {
+          title: data.books.title,
+          cover_image_url: data.books.cover_image_url,
+          author: {
+            name: data.books.authors.name
+          }
+        },
+        key_insights: data.key_insights || []
+      };
+      
+      return { summary: transformedData };
+    }
+
+    return { error: error as Error };
   },
 
   // Update reading progress
@@ -442,48 +463,74 @@ export const categories = {
       return { error: new Error('Category not found') };
     }
 
+    // Using a more direct approach to avoid the relational query issue
     const { data, error, count } = await supabase
       .from('book_categories')
       .select(`
-        books:book_id (
-          summaries:summaries (
-            id,
-            title,
-            reading_time,
-            is_premium,
-            books:book_id (
-              title,
-              cover_image_url,
-              authors:original_author_id (
-                name
-              )
-            )
+        book_id,
+        books!inner (
+          title,
+          cover_image_url,
+          original_author_id,
+          authors:original_author_id (
+            name
           )
         )
       `)
-      .eq('category_id', category.id)
-      .eq('books.summaries.is_published', true)
+      .eq('category_id', category.id);
+
+    if (error || !data) {
+      return { error: error || new Error('Failed to fetch books in category') };
+    }
+
+    // Get the book IDs from the results
+    const bookIds = data.map(item => item.book_id);
+    
+    // Now fetch summaries for these books
+    const { data: summariesData, error: summariesError } = await supabase
+      .from('summaries')
+      .select(`
+        id,
+        title,
+        reading_time,
+        is_premium,
+        book_id
+      `)
+      .in('book_id', bookIds)
+      .eq('is_published', true)
       .range((page - 1) * limit, page * limit - 1);
 
+    if (summariesError) {
+      return { error: summariesError };
+    }
+
+    // Create a map of books for quick lookup
+    const booksMap = data.reduce((acc, item) => {
+      acc[item.book_id] = {
+        title: item.books.title,
+        cover_image_url: item.books.cover_image_url,
+        author_name: item.books.authors?.name || 'Unknown Author'
+      };
+      return acc;
+    }, {});
+
     // Transform data to get flat list of summaries
-    const summaries = data?.flatMap(item => 
-      item.books?.summaries?.map(summary => ({
-        ...summary,
-        book: {
-          title: summary.books.title,
-          cover_image_url: summary.books.cover_image_url,
-          author: summary.books.authors?.name
-        }
-      })) || []
-    ) || [];
+    const summaries = summariesData?.map(summary => ({
+      ...summary,
+      book: {
+        title: booksMap[summary.book_id].title,
+        cover_image_url: booksMap[summary.book_id].cover_image_url,
+        author: booksMap[summary.book_id].author_name
+      }
+    })) || [];
 
     return { 
       summaries, 
-      error,
-      count,
+      error: null,
+      count: bookIds.length,
       page,
       limit,
-      hasMore: (page * limit) < (count || 0)
+      hasMore: (page * limit) < bookIds.length
     };
   }
 };

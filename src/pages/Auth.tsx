@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -24,8 +23,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "@/components/ui/sonner";
-import { Lock, Mail, User, Github, Google, Facebook } from "lucide-react";
+import { toast } from "@/lib/toast";
+import { Lock, Mail, User, Github, Mail as MailIcon, Facebook } from "lucide-react";
 
 const signInSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email address" }),
@@ -47,10 +46,8 @@ const Auth = () => {
   const location = useLocation();
   const { signIn, signUp, signInWithOAuth, user, loading } = useAuth();
   
-  // Get from state where the user was trying to go before they were redirected to login
   const from = (location.state as any)?.from?.pathname || "/dashboard";
 
-  // Check URL params for signup=true to switch to the signup tab
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('signup') === 'true') {
@@ -58,7 +55,6 @@ const Auth = () => {
     }
   }, [location]);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (user && !loading) {
       navigate(from, { replace: true });
@@ -207,7 +203,7 @@ const Auth = () => {
                     className="w-full"
                     onClick={() => handleOAuthSignIn('google')}
                   >
-                    <Google className="w-5 h-5" />
+                    <MailIcon className="w-5 h-5" />
                   </Button>
                   <Button
                     variant="outline"
@@ -321,7 +317,7 @@ const Auth = () => {
                     className="w-full"
                     onClick={() => handleOAuthSignIn('google')}
                   >
-                    <Google className="w-5 h-5" />
+                    <MailIcon className="w-5 h-5" />
                   </Button>
                   <Button
                     variant="outline"
