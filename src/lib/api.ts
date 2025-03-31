@@ -1,4 +1,3 @@
-
 // Import Supabase client
 import { supabase } from './supabase';
 import type { Book } from '../types/book';
@@ -40,6 +39,16 @@ export const admin = {
     try {
       console.log("API: Creating book with data:", bookData);
       
+      // Get current session for authorization
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      
+      // If we don't have a valid session, user can't create books
+      if (!sessionData.session) {
+        throw new Error('Authentication required to create books');
+      }
+      
       // Prepare the payload for the edge function
       const payload = {
         title: bookData.title,
@@ -48,7 +57,7 @@ export const admin = {
         published_year: bookData.published_year || new Date().getFullYear(),
         author_name: bookData.author_name || null,
         category_ids: bookData.category_ids || [],
-        cover_image_url: null, // Add this property to fix the TypeScript error
+        cover_image_url: null, // Initialize this property
       };
       
       // If we have a cover image, we need to upload it first
@@ -76,9 +85,12 @@ export const admin = {
         payload.cover_image_url = urlData?.publicUrl || null;
       }
       
-      // Call the Edge function to create the book with admin privileges
+      // Call the Edge function with authorization header to create the book
       const { data, error } = await supabase.functions.invoke('create-book', {
-        body: payload
+        body: payload,
+        headers: {
+          Authorization: `Bearer ${sessionData.session.access_token}`
+        }
       });
       
       if (error) throw error;

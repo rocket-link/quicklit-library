@@ -17,7 +17,7 @@ serve(async (req) => {
   }
 
   try {
-    // Get the request body
+    // Get the request body and authorization header
     const { 
       title, 
       description, 
@@ -27,6 +27,13 @@ serve(async (req) => {
       cover_image_url,
       category_ids 
     } = await req.json()
+    
+    // Get authorization header from request
+    const authorization = req.headers.get('Authorization')
+    
+    if (!authorization) {
+      throw new Error('Missing authorization header')
+    }
 
     // Get environment variables
     const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
@@ -34,6 +41,26 @@ serve(async (req) => {
 
     // Initialize Supabase client with service role key for admin access
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    
+    // Verify the user is authenticated and has admin rights
+    const { data: { user }, error: authError } = await supabase.auth.getUser(
+      authorization.replace('Bearer ', '')
+    )
+    
+    if (authError || !user) {
+      throw new Error('Invalid authorization token')
+    }
+    
+    // Check if user has admin role
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+      
+    if (userError || !userData || userData.role !== 'admin') {
+      throw new Error('User does not have admin privileges')
+    }
     
     // First, create the book entry
     const bookPayload = {
@@ -148,3 +175,4 @@ serve(async (req) => {
     )
   }
 })
+
