@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import { User, Session } from '@supabase/supabase-js';
 
 // Types
 export interface Summary {
