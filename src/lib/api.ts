@@ -1,72 +1,19 @@
-// Import any necessary dependencies here
-// This is a placeholder file - you would replace this with your actual API implementation
 
-// Create a shared mock database for consistency across API functions
-const mockDatabase = {
-  books: [
-    {
-      id: "book-1",
-      title: "Atomic Habits",
-      author_name: "James Clear",
-      description: "Tiny Changes, Remarkable Results",
-      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-      category_ids: ["3"],
-      published_year: 2018,
-      isbn: "978-1847941831",
-      readTime: 15
-    },
-    {
-      id: "book-2",
-      title: "Deep Work",
-      author_name: "Cal Newport",
-      description: "Rules for Focused Success in a Distracted World",
-      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
-      category_ids: ["4"],
-      published_year: 2016,
-      isbn: "978-0349411903",
-      readTime: 18
-    },
-    {
-      id: "book-3",
-      title: "Thinking, Fast and Slow",
-      author_name: "Daniel Kahneman",
-      description: "A groundbreaking tour of the mind",
-      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
-      category_ids: ["5"],
-      published_year: 2011,
-      isbn: "978-0141033570",
-      readTime: 22
-    },
-    {
-      id: "book-4",
-      title: "Sapiens",
-      author_name: "Yuval Noah Harari",
-      description: "A Brief History of Humankind",
-      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-      category_ids: ["6"],
-      published_year: 2014,
-      isbn: "978-0099590088",
-      readTime: 25
-    }
-  ]
-};
+// Import Supabase client
+import { supabase } from './supabase';
+import type { Book } from '../types/book';
 
 export const categories = {
   getAllCategories: async () => {
     try {
-      // In a real implementation, this would call your backend API
-      // For now, return mock data
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*');
+      
+      if (error) throw error;
+      
       return {
-        categories: [
-          { id: "1", name: "Fiction" },
-          { id: "2", name: "Non-Fiction" },
-          { id: "3", name: "Self-Help" },
-          { id: "4", name: "Business" },
-          { id: "5", name: "Science" },
-          { id: "6", name: "History" },
-          { id: "7", name: "Biography" },
-          { id: "8", name: "Technology" }
-        ],
+        categories: data || [],
         error: null
       };
     } catch (error) {
@@ -92,27 +39,141 @@ export const admin = {
     try {
       console.log("API: Creating book with data:", bookData);
       
-      // Create a new book entry
-      const newBook = {
-        id: `book-${Date.now()}`,
+      // First, create the book entry
+      const bookPayload = {
         title: bookData.title,
-        author_name: bookData.author_name || "Unknown Author",
-        description: bookData.description || "",
-        cover_image_url: bookData.cover_image ? URL.createObjectURL(bookData.cover_image) : "/placeholder.svg",
-        category_ids: bookData.category_ids || [],
+        description: bookData.description || null,
+        isbn: bookData.isbn || null,
         published_year: bookData.published_year || new Date().getFullYear(),
-        isbn: bookData.isbn || `ISBN-${Date.now()}`,
+        language: 'en', // Default value
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      
+      // Insert the book
+      const { data: bookData_, error: bookError } = await supabase
+        .from('books')
+        .insert(bookPayload)
+        .select()
+        .single();
+      
+      if (bookError) throw bookError;
+      
+      // If we have a book cover, upload it to storage
+      let coverImageUrl = null;
+      if (bookData.cover_image) {
+        const fileExt = bookData.cover_image.name.split('.').pop();
+        const fileName = `${bookData_.id}.${fileExt}`;
+        const filePath = `book_covers/${fileName}`;
+        
+        // Upload the image to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase
+          .storage
+          .from('book_covers')
+          .upload(filePath, bookData.cover_image);
+        
+        if (uploadError) throw uploadError;
+        
+        // Get the public URL of the uploaded image
+        const { data: urlData } = supabase
+          .storage
+          .from('book_covers')
+          .getPublicUrl(filePath);
+        
+        coverImageUrl = urlData?.publicUrl;
+        
+        // Update book with cover image URL
+        const { error: updateError } = await supabase
+          .from('books')
+          .update({ cover_image_url: coverImageUrl })
+          .eq('id', bookData_.id);
+        
+        if (updateError) throw updateError;
+      }
+      
+      // If we have author info, we need to create or find the author
+      if (bookData.author_name) {
+        // Look for existing author
+        const { data: authorData, error: authorFetchError } = await supabase
+          .from('authors')
+          .select('*')
+          .ilike('name', bookData.author_name)
+          .limit(1);
+        
+        let authorId;
+        
+        if (authorFetchError) throw authorFetchError;
+        
+        if (authorData && authorData.length > 0) {
+          // Use existing author
+          authorId = authorData[0].id;
+        } else {
+          // Create new author
+          const { data: newAuthor, error: newAuthorError } = await supabase
+            .from('authors')
+            .insert({
+              name: bookData.author_name,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single();
+          
+          if (newAuthorError) throw newAuthorError;
+          authorId = newAuthor.id;
+        }
+        
+        // Update book with author ID
+        const { error: updateAuthorError } = await supabase
+          .from('books')
+          .update({ original_author_id: authorId })
+          .eq('id', bookData_.id);
+        
+        if (updateAuthorError) throw updateAuthorError;
+      }
+      
+      // If we have category IDs, link them to the book
+      if (bookData.category_ids && bookData.category_ids.length > 0) {
+        const categoryLinks = bookData.category_ids.map(categoryId => ({
+          book_id: bookData_.id,
+          category_id: categoryId
+        }));
+        
+        const { error: categoryError } = await supabase
+          .from('book_categories')
+          .insert(categoryLinks);
+        
+        if (categoryError) throw categoryError;
+      }
+      
+      // Get the complete book data with author info
+      const { data: completeBook, error: fetchError } = await supabase
+        .from('books')
+        .select(`
+          *,
+          authors:original_author_id (
+            name
+          )
+        `)
+        .eq('id', bookData_.id)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Transform to match expected return format
+      const transformedBook = {
+        id: completeBook.id,
+        title: completeBook.title,
+        author: completeBook.authors?.name || "Unknown Author",
+        description: completeBook.description,
+        coverImage: completeBook.cover_image_url,
+        publishedYear: completeBook.published_year,
+        isbn: completeBook.isbn,
         readTime: Math.floor(Math.random() * 30) + 5 // Random read time between 5-35 mins
       };
       
-      // Add the new book to our mock database
-      mockDatabase.books.push(newBook);
-      
-      console.log("New book added to database:", newBook);
-      console.log("Current books in database:", mockDatabase.books.length);
-      
       return {
-        book: newBook,
+        book: transformedBook,
         error: null
       };
     } catch (error) {
@@ -129,17 +190,47 @@ export const books = {
   getBooks: async () => {
     try {
       console.log("API: Fetching all books");
-      console.log("Total books available:", mockDatabase.books.length);
       
-      return {
-        books: mockDatabase.books.map(book => ({
+      // Get all books with author information
+      const { data, error } = await supabase
+        .from('books')
+        .select(`
+          *,
+          authors:original_author_id (
+            name
+          ),
+          book_categories (
+            category_id,
+            categories:category_id (
+              name
+            )
+          )
+        `);
+      
+      if (error) throw error;
+      
+      // Transform the data to match the expected Book type
+      const transformedBooks: Book[] = (data || []).map(book => {
+        // Get first category name if available
+        const category = book.book_categories && book.book_categories.length > 0
+          ? book.book_categories[0]?.categories?.name || "Uncategorized"
+          : "Uncategorized";
+        
+        return {
           id: book.id,
           title: book.title,
-          author: book.author_name,
-          coverImage: book.cover_image_url,
-          category: "Book", // This would ideally come from category lookup
-          readTime: book.readTime
-        })),
+          author: book.authors?.name || "Unknown Author",
+          coverImage: book.cover_image_url || "/placeholder.svg",
+          category,
+          readTime: Math.floor(Math.random() * 30) + 5, // Placeholder for read time
+          description: book.description,
+          publishedYear: book.published_year,
+          isbn: book.isbn
+        };
+      });
+      
+      return {
+        books: transformedBooks,
         error: null
       };
     } catch (error) {
@@ -154,26 +245,58 @@ export const books = {
   getBookById: async (id: string) => {
     try {
       console.log("API: Fetching book by ID:", id);
-      const book = mockDatabase.books.find(book => book.id === id);
       
-      if (!book) {
+      const { data, error } = await supabase
+        .from('books')
+        .select(`
+          *,
+          authors:original_author_id (
+            name
+          ),
+          book_categories (
+            category_id,
+            categories:category_id (
+              name
+            )
+          ),
+          summaries (*)
+        `)
+        .eq('id', id)
+        .single();
+      
+      if (error) throw error;
+      
+      if (!data) {
         return {
           book: null,
           error: "Book not found"
         };
       }
       
+      // Calculate read time based on summaries if available, otherwise default
+      const readTime = data.summaries && data.summaries.length > 0
+        ? data.summaries[0].reading_time
+        : Math.floor(Math.random() * 30) + 5;
+      
+      // Get first category name if available
+      const category = data.book_categories && data.book_categories.length > 0
+        ? data.book_categories[0]?.categories?.name || "Uncategorized"
+        : "Uncategorized";
+      
+      const transformedBook: Book = {
+        id: data.id,
+        title: data.title,
+        author: data.authors?.name || "Unknown Author",
+        description: data.description,
+        coverImage: data.cover_image_url || "/placeholder.svg",
+        category,
+        readTime,
+        publishedYear: data.published_year,
+        isbn: data.isbn
+      };
+      
       return {
-        book: {
-          id: book.id,
-          title: book.title,
-          author: book.author_name,
-          description: book.description,
-          coverImage: book.cover_image_url,
-          publishedYear: book.published_year,
-          isbn: book.isbn,
-          readTime: book.readTime
-        },
+        book: transformedBook,
         error: null
       };
     } catch (error) {
@@ -188,18 +311,70 @@ export const books = {
 
 export const users = {
   getCurrentUser: async () => {
-    // Implementation for getting current user
-    return {
-      user: null,
-      error: null
-    };
+    try {
+      // Get the current authenticated user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) throw authError;
+      
+      if (!user) {
+        return { user: null, error: null };
+      }
+      
+      // Get the user's profile information
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+      
+      if (error) throw error;
+      
+      return {
+        user: {
+          ...user,
+          profile: data || null
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error getting current user:", error);
+      return {
+        user: null,
+        error: "Failed to get user data"
+      };
+    }
   },
+  
   updateProfile: async (userData: any) => {
-    // Implementation for updating user profile
-    return {
-      profile: null,
-      error: null
-    };
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) throw authError;
+      if (!user) throw new Error("Not authenticated");
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          ...userData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id)
+        .select();
+      
+      if (error) throw error;
+      
+      return {
+        profile: data ? data[0] : null,
+        error: null
+      };
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      return {
+        profile: null,
+        error: "Failed to update profile"
+      };
+    }
   }
 };
 
@@ -208,30 +383,48 @@ export const summaries = {
     try {
       console.log("API: Fetching summaries, page:", page, "limit:", limit, "filter:", filter);
       
-      // Use books from our mock database as summaries
-      let filteredBooks = [...mockDatabase.books];
+      // Start building the query
+      let query = supabase
+        .from('summaries')
+        .select(`
+          *,
+          books (
+            title,
+            cover_image_url,
+            authors:original_author_id (
+              name
+            )
+          )
+        `);
       
-      // Apply category filter if provided
-      if (filter && filter.category) {
-        filteredBooks = filteredBooks.filter(book => 
-          book.category_ids && book.category_ids.includes(filter.category)
-        );
+      // Apply filters if provided
+      if (filter) {
+        if (filter.category) {
+          query = query.in('books.book_categories.category_id', [filter.category]);
+        }
       }
       
-      // Calculate pagination
-      const startIndex = (page - 1) * limit;
-      const endIndex = startIndex + limit;
-      const paginatedBooks = filteredBooks.slice(startIndex, endIndex);
+      // Apply pagination
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
       
-      const summaries = paginatedBooks.map(book => ({
-        id: book.id,
-        title: book.title,
-        reading_time: book.readTime,
+      query = query.range(from, to);
+      
+      // Execute the query
+      const { data, error, count } = await query;
+      
+      if (error) throw error;
+      
+      // Transform the results
+      const summaries = (data || []).map(summary => ({
+        id: summary.id,
+        title: summary.title,
+        reading_time: summary.reading_time,
         books: {
-          title: book.title,
-          cover_image_url: book.cover_image_url,
+          title: summary.books.title,
+          cover_image_url: summary.books.cover_image_url || "/placeholder.svg",
           authors: {
-            name: book.author_name
+            name: summary.books.authors?.name || "Unknown Author"
           }
         }
       }));
@@ -253,9 +446,24 @@ export const summaries = {
     try {
       console.log("API: Fetching summary by ID:", id);
       
-      const book = mockDatabase.books.find(book => book.id === id);
+      const { data, error } = await supabase
+        .from('summaries')
+        .select(`
+          *,
+          books (
+            title,
+            cover_image_url,
+            authors:original_author_id (
+              name
+            )
+          )
+        `)
+        .eq('id', id)
+        .single();
       
-      if (!book) {
+      if (error) throw error;
+      
+      if (!data) {
         return {
           summary: null,
           error: "Summary not found"
@@ -264,16 +472,16 @@ export const summaries = {
       
       return {
         summary: {
-          id: book.id,
-          title: book.title,
-          content: `This is a summary of ${book.title}...`,
-          reading_time: book.readTime,
-          audio_url: `/audio/${book.id}.mp3`,
+          id: data.id,
+          title: data.title,
+          content: data.text_content,
+          reading_time: data.reading_time,
+          audio_url: data.audio_url,
           books: {
-            title: book.title,
-            cover_image_url: book.cover_image_url,
+            title: data.books.title,
+            cover_image_url: data.books.cover_image_url || "/placeholder.svg",
             authors: {
-              name: book.author_name
+              name: data.books.authors?.name || "Unknown Author"
             }
           }
         },
@@ -293,21 +501,132 @@ export const summaries = {
   },
   
   toggleBookmark: async (summaryId: string) => {
-    console.log("API: Toggling bookmark for summary:", summaryId);
-    return {
-      data: {
-        bookmarked: true // Mock response, alternating would be more realistic
-      },
-      error: null
-    };
+    try {
+      console.log("API: Toggling bookmark for summary:", summaryId);
+      
+      // Get current user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) throw authError;
+      if (!user) throw new Error("Not authenticated");
+      
+      // Check if bookmark already exists
+      const { data: existingBookmarks, error: checkError } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('summary_id', summaryId);
+      
+      if (checkError) throw checkError;
+      
+      let isBookmarked: boolean;
+      
+      if (existingBookmarks && existingBookmarks.length > 0) {
+        // Remove bookmark
+        const { error: deleteError } = await supabase
+          .from('bookmarks')
+          .delete()
+          .eq('id', existingBookmarks[0].id);
+        
+        if (deleteError) throw deleteError;
+        
+        isBookmarked = false;
+      } else {
+        // Add bookmark
+        const { error: insertError } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: user.id,
+            summary_id: summaryId,
+            created_at: new Date().toISOString()
+          });
+        
+        if (insertError) throw insertError;
+        
+        isBookmarked = true;
+      }
+      
+      return {
+        data: {
+          bookmarked: isBookmarked
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error toggling bookmark:", error);
+      return {
+        data: {
+          bookmarked: false
+        },
+        error: "Failed to toggle bookmark"
+      };
+    }
   },
   
   updateReadingProgress: async (summaryId: string, progress: number) => {
-    console.log("API: Updating reading progress for summary:", summaryId, "progress:", progress);
-    return {
-      success: true,
-      error: null
-    };
+    try {
+      console.log("API: Updating reading progress for summary:", summaryId, "progress:", progress);
+      
+      // Get current user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) throw authError;
+      if (!user) throw new Error("Not authenticated");
+      
+      // Check if a reading history record already exists
+      const { data: existingRecord, error: checkError } = await supabase
+        .from('reading_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('summary_id', summaryId)
+        .maybeSingle();
+      
+      if (checkError) throw checkError;
+      
+      const completed = progress >= 100;
+      const now = new Date().toISOString();
+      
+      if (existingRecord) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from('reading_history')
+          .update({
+            progress,
+            completed,
+            last_read_at: now,
+            updated_at: now
+          })
+          .eq('id', existingRecord.id);
+        
+        if (updateError) throw updateError;
+      } else {
+        // Create new record
+        const { error: insertError } = await supabase
+          .from('reading_history')
+          .insert({
+            user_id: user.id,
+            summary_id: summaryId,
+            progress,
+            completed,
+            last_read_at: now,
+            created_at: now,
+            updated_at: now
+          });
+        
+        if (insertError) throw insertError;
+      }
+      
+      return {
+        success: true,
+        error: null
+      };
+    } catch (error) {
+      console.error("Error updating reading progress:", error);
+      return {
+        success: false,
+        error: "Failed to update reading progress"
+      };
+    }
   }
 };
 
@@ -315,15 +634,57 @@ export const dashboard = {
   getUserDashboardData: async () => {
     try {
       console.log("API: Fetching user dashboard data");
-      // Mock implementation
+      
+      // Get current user
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      
+      if (authError) throw authError;
+      if (!user) throw new Error("Not authenticated");
+      
+      // Get reading history
+      const { data: readingHistory, error: historyError } = await supabase
+        .from('reading_history')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (historyError) throw historyError;
+      
+      // Calculate stats
+      const booksRead = readingHistory ? readingHistory.filter(item => item.completed).length : 0;
+      
+      // Calculate total reading time (in minutes)
+      let totalReadingTime = 0;
+      if (readingHistory && readingHistory.length > 0) {
+        const { data: summaries, error: summaryError } = await supabase
+          .from('summaries')
+          .select('id, reading_time')
+          .in('id', readingHistory.map(item => item.summary_id));
+        
+        if (summaryError) throw summaryError;
+        
+        if (summaries) {
+          const summaryMap = new Map(summaries.map(s => [s.id, s.reading_time]));
+          
+          // For each reading history item, calculate actual reading time based on progress
+          totalReadingTime = readingHistory.reduce((total, item) => {
+            const summaryTime = summaryMap.get(item.summary_id) || 0;
+            return total + (summaryTime * (item.progress / 100));
+          }, 0);
+        }
+      }
+      
+      // Calculate reading streak (simplified)
+      // In a real implementation, this would be more sophisticated
+      const readingStreak = Math.min(5, booksRead); // Placeholder streak calculation
+      
       return {
         dashboardData: {
-          readingStreak: 5,
-          booksRead: mockDatabase.books.length,
-          readingTime: 240, // minutes
+          readingStreak,
+          booksRead,
+          readingTime: Math.round(totalReadingTime),
           yearlyGoal: {
-            current: mockDatabase.books.length,
-            target: 50
+            current: booksRead,
+            target: 50 // Default target
           }
         },
         error: null
@@ -342,15 +703,17 @@ export const profiles = {
   getProfile: async (userId: string) => {
     try {
       console.log("API: Fetching profile for user:", userId);
-      // Mock implementation
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (error) throw error;
+      
       return {
-        profile: {
-          id: userId,
-          username: "bookworm",
-          full_name: "John Reader",
-          bio: "Avid reader and book lover",
-          avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=bookworm"
-        },
+        profile: data || null,
         error: null
       };
     } catch (error) {
@@ -365,12 +728,20 @@ export const profiles = {
   updateProfile: async (userId: string, profileData: any) => {
     try {
       console.log("API: Updating profile for user:", userId, "with data:", profileData);
-      // Mock implementation
+      
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({
+          ...profileData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select();
+      
+      if (error) throw error;
+      
       return {
-        profile: {
-          id: userId,
-          ...profileData
-        },
+        profile: data ? data[0] : null,
         error: null
       };
     } catch (error) {
@@ -385,9 +756,38 @@ export const profiles = {
   uploadAvatar: async (userId: string, file: File) => {
     try {
       console.log("API: Uploading avatar for user:", userId, "filename:", file.name);
-      // Mock implementation
+      
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+      
+      // Upload the avatar
+      const { error: uploadError } = await supabase
+        .storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+      
+      if (uploadError) throw uploadError;
+      
+      // Get the public URL
+      const { data: urlData } = supabase
+        .storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+      
+      // Update the user's profile with the new avatar URL
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: urlData?.publicUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+      
+      if (updateError) throw updateError;
+      
       return {
-        url: URL.createObjectURL(file),
+        url: urlData?.publicUrl || null,
         error: null
       };
     } catch (error) {
@@ -404,26 +804,20 @@ export const auth = {
   signIn: async (email: string, password: string) => {
     try {
       console.log("API: Signing in with email:", email);
-      // Mock implementation
-      return {
-        data: {
-          user: {
-            id: "user_123",
-            email: email,
-            created_at: new Date().toISOString(),
-          },
-          session: {
-            access_token: "mock_token",
-            expires_at: Date.now() + 3600000,
-          }
-        },
-        error: null
-      };
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      
+      if (error) throw error;
+      
+      return { data, error: null };
     } catch (error) {
       console.error("Sign in error:", error);
       return {
         data: null,
-        error: new Error("Failed to sign in")
+        error
       };
     }
   },
@@ -431,24 +825,34 @@ export const auth = {
   signUp: async (email: string, password: string, metadata?: { full_name?: string; username?: string }) => {
     try {
       console.log("API: Creating account for email:", email, "with metadata:", metadata);
-      // Mock implementation
-      return {
-        data: {
-          user: {
-            id: `user_${Date.now()}`,
-            email: email,
-            user_metadata: metadata,
-            created_at: new Date().toISOString()
-          },
-          session: null
-        },
-        error: null
-      };
+      
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata
+        }
+      });
+      
+      if (error) throw error;
+      
+      // If sign up was successful and we have user data, create a profile
+      if (data.user) {
+        await supabase.from('profiles').insert({
+          id: data.user.id,
+          username: metadata?.username || email.split('@')[0],
+          full_name: metadata?.full_name || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+      }
+      
+      return { data, error: null };
     } catch (error) {
       console.error("Sign up error:", error);
       return {
         data: null,
-        error: new Error("Failed to sign up")
+        error
       };
     }
   },
@@ -456,30 +860,34 @@ export const auth = {
   signOut: async () => {
     try {
       console.log("API: Signing out");
-      // Mock implementation
+      
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) throw error;
+      
       return { error: null };
     } catch (error) {
       console.error("Sign out error:", error);
-      return { error: new Error("Failed to sign out") };
+      return { error };
     }
   },
   
   signInWithOAuth: async (provider: 'google' | 'facebook' | 'twitter') => {
     try {
       console.log(`API: Signing in with ${provider}`);
-      // Mock implementation
-      return {
-        data: {
-          provider: provider,
-          url: "#" // In a real app, this would redirect to OAuth provider
-        },
-        error: null
-      };
+      
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: provider
+      });
+      
+      if (error) throw error;
+      
+      return { data, error: null };
     } catch (error) {
       console.error(`${provider} sign in error:`, error);
       return {
         data: null,
-        error: new Error(`Failed to sign in with ${provider}`)
+        error
       };
     }
   }
