@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import OpenAIKeyForm from "@/components/OpenAIKeyForm";
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -171,10 +170,6 @@ const Auth = () => {
               </div>
             </TabsContent>
           </Tabs>
-        </div>
-
-        <div className="mt-8 w-full max-w-md">
-          <OpenAIKeyForm />
         </div>
       </div>
     </div>
