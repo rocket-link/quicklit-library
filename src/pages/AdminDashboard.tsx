@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -24,7 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import BookForm from "@/components/admin/BookForm";
 import { admin } from "@/lib/api";
 import { useQuery } from "@tanstack/react-query";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "@/lib/toast";
 
 // Mock data for analytics
 const analyticsData = [
@@ -444,41 +443,5 @@ const Label = ({ htmlFor, children }: { htmlFor: string, children: React.ReactNo
     </label>
   );
 };
-
-// Mock data for books
-const mockBooks: Book[] = [
-  {
-    id: "1",
-    title: "Atomic Habits",
-    author: "James Clear",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-    category: "Self-Improvement",
-    readTime: 15
-  },
-  {
-    id: "2",
-    title: "Thinking, Fast and Slow",
-    author: "Daniel Kahneman",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
-    category: "Psychology",
-    readTime: 16
-  },
-  {
-    id: "3",
-    title: "Sapiens",
-    author: "Yuval Noah Harari",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-    category: "History",
-    readTime: 17
-  },
-  {
-    id: "4",
-    title: "Deep Work",
-    author: "Cal Newport",
-    coverImage: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
-    category: "Productivity",
-    readTime: 14
-  },
-];
 
 export default AdminDashboard;
