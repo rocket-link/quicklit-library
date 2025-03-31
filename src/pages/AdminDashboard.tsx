@@ -1,4 +1,5 @@
-import { useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
@@ -85,15 +86,40 @@ const AdminDashboard = () => {
   const [searchUsers, setSearchUsers] = useState("");
   const [isAddBookDialogOpen, setIsAddBookDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Check for URL params or session storage to set the active tab
+  useEffect(() => {
+    const storedTab = sessionStorage.getItem('adminActiveTab');
+    const openAddBookDialog = sessionStorage.getItem('openAddBookDialog');
+    
+    if (storedTab) {
+      setActiveTab(storedTab);
+      // Clear the stored tab after setting it
+      sessionStorage.removeItem('adminActiveTab');
+    }
+    
+    if (openAddBookDialog === 'true') {
+      setIsAddBookDialogOpen(true);
+      // Clear the flag after opening dialog
+      sessionStorage.removeItem('openAddBookDialog');
+    }
+  }, []);
 
   // Fetch books using the API
   const { data: booksData, refetch: refetchBooks, isLoading: isLoadingBooks } = useQuery({
     queryKey: ["admin-books"],
     queryFn: async () => {
-      // This is mock implementation since we don't have a specific admin.getBooks endpoint
-      // In a real app, you would use an actual API call
-      return mockBooks;
-    },
+      try {
+        // In a real app, you would use an actual API call
+        // For now we use the mock data
+        console.log("Fetching books data");
+        return mockBooks;
+      } catch (error) {
+        console.error("Error fetching books:", error);
+        toast.error("Failed to load books");
+        return [];
+      }
+    }
   });
 
   const filteredBooks = booksData?.filter(book => 
@@ -109,10 +135,17 @@ const AdminDashboard = () => {
   const handleAddBook = async (bookData: any) => {
     setIsSubmitting(true);
     try {
+      console.log("Adding new book with data:", bookData);
+      
+      // This is where we call the API to create a book
       const { book, error } = await admin.createBook(bookData);
+      
       if (error) {
+        console.error("API returned error:", error);
         throw error;
       }
+      
+      console.log("Book created successfully:", book);
       toast.success(`Book "${book.title}" created successfully!`);
       setIsAddBookDialogOpen(false);
       refetchBooks();
