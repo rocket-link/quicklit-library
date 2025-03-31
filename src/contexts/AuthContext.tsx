@@ -1,4 +1,7 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+
+import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import { auth as authApi } from '@/lib/api';
 import { toast } from '@/lib/toast';
 

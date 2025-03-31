@@ -1,15 +1,5 @@
-// File: src/lib/supabase.ts
-import { createClient } from '@supabase/supabase-js';
-import type { Database } from './database.types';
-
-// Initialize the Supabase client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
-
-// File: src/lib/api.ts
 import { supabase } from './supabase';
+import { User, Session } from '@supabase/supabase-js';
 
 // Types
 export interface Summary {
