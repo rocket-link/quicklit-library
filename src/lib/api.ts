@@ -1,6 +1,55 @@
-
 // Import any necessary dependencies here
 // This is a placeholder file - you would replace this with your actual API implementation
+
+// Create a shared mock database for consistency across API functions
+const mockDatabase = {
+  books: [
+    {
+      id: "book-1",
+      title: "Atomic Habits",
+      author_name: "James Clear",
+      description: "Tiny Changes, Remarkable Results",
+      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
+      category_ids: ["3"],
+      published_year: 2018,
+      isbn: "978-1847941831",
+      readTime: 15
+    },
+    {
+      id: "book-2",
+      title: "Deep Work",
+      author_name: "Cal Newport",
+      description: "Rules for Focused Success in a Distracted World",
+      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
+      category_ids: ["4"],
+      published_year: 2016,
+      isbn: "978-0349411903",
+      readTime: 18
+    },
+    {
+      id: "book-3",
+      title: "Thinking, Fast and Slow",
+      author_name: "Daniel Kahneman",
+      description: "A groundbreaking tour of the mind",
+      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
+      category_ids: ["5"],
+      published_year: 2011,
+      isbn: "978-0141033570",
+      readTime: 22
+    },
+    {
+      id: "book-4",
+      title: "Sapiens",
+      author_name: "Yuval Noah Harari",
+      description: "A Brief History of Humankind",
+      cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
+      category_ids: ["6"],
+      published_year: 2014,
+      isbn: "978-0099590088",
+      readTime: 25
+    }
+  ]
+};
 
 export const categories = {
   getAllCategories: async () => {
@@ -43,16 +92,27 @@ export const admin = {
     try {
       console.log("API: Creating book with data:", bookData);
       
-      // For now, return a mock successful response
-      // In a real implementation, this would call the backend API
+      // Create a new book entry
+      const newBook = {
+        id: `book-${Date.now()}`,
+        title: bookData.title,
+        author_name: bookData.author_name || "Unknown Author",
+        description: bookData.description || "",
+        cover_image_url: bookData.cover_image ? URL.createObjectURL(bookData.cover_image) : "/placeholder.svg",
+        category_ids: bookData.category_ids || [],
+        published_year: bookData.published_year || new Date().getFullYear(),
+        isbn: bookData.isbn || `ISBN-${Date.now()}`,
+        readTime: Math.floor(Math.random() * 30) + 5 // Random read time between 5-35 mins
+      };
+      
+      // Add the new book to our mock database
+      mockDatabase.books.push(newBook);
+      
+      console.log("New book added to database:", newBook);
+      console.log("Current books in database:", mockDatabase.books.length);
+      
       return {
-        book: {
-          id: `book-${Date.now()}`,
-          title: bookData.title,
-          author: bookData.author_name || "Unknown Author",
-          category: bookData.category_ids?.length ? "Multiple Categories" : "Uncategorized",
-          readTime: Math.floor(Math.random() * 30) + 5, // Random read time between 5-35 mins
-        },
+        book: newBook,
         error: null
       };
     } catch (error) {
@@ -68,18 +128,62 @@ export const admin = {
 // Add other API functions as needed
 export const books = {
   getBooks: async () => {
-    // Implementation for fetching books
-    return {
-      books: [],
-      error: null
-    };
+    try {
+      console.log("API: Fetching all books");
+      console.log("Total books available:", mockDatabase.books.length);
+      
+      return {
+        books: mockDatabase.books.map(book => ({
+          id: book.id,
+          title: book.title,
+          author: book.author_name,
+          coverImage: book.cover_image_url,
+          category: "Book", // This would ideally come from category lookup
+          readTime: book.readTime
+        })),
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching books:", error);
+      return {
+        books: [],
+        error: "Failed to fetch books"
+      };
+    }
   },
+  
   getBookById: async (id: string) => {
-    // Implementation for fetching a specific book
-    return {
-      book: null,
-      error: null
-    };
+    try {
+      console.log("API: Fetching book by ID:", id);
+      const book = mockDatabase.books.find(book => book.id === id);
+      
+      if (!book) {
+        return {
+          book: null,
+          error: "Book not found"
+        };
+      }
+      
+      return {
+        book: {
+          id: book.id,
+          title: book.title,
+          author: book.author_name,
+          description: book.description,
+          coverImage: book.cover_image_url,
+          publishedYear: book.published_year,
+          isbn: book.isbn,
+          readTime: book.readTime
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching book:", error);
+      return {
+        book: null,
+        error: "Failed to fetch book"
+      };
+    }
   }
 };
 
@@ -100,7 +204,203 @@ export const users = {
   }
 };
 
-// Add missing API implementations
+// Update summaries API to use books from our mock database
+export const summaries = {
+  getAllSummaries: async (page = 1, limit = 10, filter?: any) => {
+    try {
+      console.log("API: Fetching summaries, page:", page, "limit:", limit, "filter:", filter);
+      
+      // Use books from our mock database as summaries
+      let filteredBooks = [...mockDatabase.books];
+      
+      // Apply category filter if provided
+      if (filter && filter.category) {
+        filteredBooks = filteredBooks.filter(book => 
+          book.category_ids && book.category_ids.includes(filter.category)
+        );
+      }
+      
+      // Calculate pagination
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + limit;
+      const paginatedBooks = filteredBooks.slice(startIndex, endIndex);
+      
+      const summaries = paginatedBooks.map(book => ({
+        id: book.id,
+        title: book.title,
+        reading_time: book.readTime,
+        books: {
+          title: book.title,
+          cover_image_url: book.cover_image_url,
+          authors: {
+            name: book.author_name
+          }
+        }
+      }));
+      
+      return {
+        summaries,
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching summaries:", error);
+      return {
+        summaries: [],
+        error: "Failed to fetch summaries"
+      };
+    }
+  },
+  
+  getSummaryById: async (id: string) => {
+    try {
+      console.log("API: Fetching summary by ID:", id);
+      
+      const book = mockDatabase.books.find(book => book.id === id);
+      
+      if (!book) {
+        return {
+          summary: null,
+          error: "Summary not found"
+        };
+      }
+      
+      return {
+        summary: {
+          id: book.id,
+          title: book.title,
+          content: `This is a summary of ${book.title}...`,
+          reading_time: book.readTime,
+          audio_url: `/audio/${book.id}.mp3`,
+          books: {
+            title: book.title,
+            cover_image_url: book.cover_image_url,
+            authors: {
+              name: book.author_name
+            }
+          }
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching summary:", error);
+      return {
+        summary: null,
+        error: "Failed to fetch summary"
+      };
+    }
+  },
+  
+  // Add these methods to fix the BookSummary.tsx errors
+  getSummary: async (id: string) => {
+    return summaries.getSummaryById(id);
+  },
+  
+  toggleBookmark: async (summaryId: string) => {
+    console.log("API: Toggling bookmark for summary:", summaryId);
+    return {
+      success: true,
+      error: null
+    };
+  },
+  
+  updateReadingProgress: async (summaryId: string, progress: number) => {
+    console.log("API: Updating reading progress for summary:", summaryId, "progress:", progress);
+    return {
+      success: true,
+      error: null
+    };
+  }
+};
+
+export const dashboard = {
+  getUserDashboardData: async () => {
+    try {
+      console.log("API: Fetching user dashboard data");
+      // Mock implementation
+      return {
+        dashboardData: {
+          readingStreak: 5,
+          booksRead: mockDatabase.books.length,
+          readingTime: 240, // minutes
+          yearlyGoal: {
+            current: mockDatabase.books.length,
+            target: 50
+          }
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      return {
+        dashboardData: null,
+        error: "Failed to fetch dashboard data"
+      };
+    }
+  }
+};
+
+export const profiles = {
+  getProfile: async (userId: string) => {
+    try {
+      console.log("API: Fetching profile for user:", userId);
+      // Mock implementation
+      return {
+        profile: {
+          id: userId,
+          username: "bookworm",
+          full_name: "John Reader",
+          bio: "Avid reader and book lover",
+          avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=bookworm"
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      return {
+        profile: null,
+        error: "Failed to fetch profile"
+      };
+    }
+  },
+  
+  updateProfile: async (userId: string, profileData: any) => {
+    try {
+      console.log("API: Updating profile for user:", userId, "with data:", profileData);
+      // Mock implementation
+      return {
+        profile: {
+          id: userId,
+          ...profileData
+        },
+        error: null
+      };
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      return {
+        profile: null,
+        error: "Failed to update profile"
+      };
+    }
+  },
+  
+  uploadAvatar: async (userId: string, file: File) => {
+    try {
+      console.log("API: Uploading avatar for user:", userId, "filename:", file.name);
+      // Mock implementation
+      return {
+        url: URL.createObjectURL(file),
+        error: null
+      };
+    } catch (error) {
+      console.error("Error uploading avatar:", error);
+      return {
+        url: null,
+        error: "Failed to upload avatar"
+      };
+    }
+  }
+};
+
 export const auth = {
   signIn: async (email: string, password: string) => {
     try {
@@ -181,195 +481,6 @@ export const auth = {
       return {
         data: null,
         error: new Error(`Failed to sign in with ${provider}`)
-      };
-    }
-  }
-};
-
-export const summaries = {
-  getAllSummaries: async (page = 1, limit = 10, filter?: any) => {
-    try {
-      console.log("API: Fetching summaries, page:", page, "limit:", limit, "filter:", filter);
-      // Mock implementation
-      const mockSummaries = [
-        {
-          id: "summary_1",
-          title: "Atomic Habits",
-          reading_time: 15,
-          books: {
-            title: "Atomic Habits",
-            cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-            authors: {
-              name: "James Clear"
-            }
-          }
-        },
-        {
-          id: "summary_2",
-          title: "Deep Work",
-          reading_time: 18,
-          books: {
-            title: "Deep Work",
-            cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51vmivI5KvL._SX329_BO1,204,203,200_.jpg",
-            authors: {
-              name: "Cal Newport"
-            }
-          }
-        },
-        {
-          id: "summary_3",
-          title: "Thinking, Fast and Slow",
-          reading_time: 22,
-          books: {
-            title: "Thinking, Fast and Slow",
-            cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41wI53OEpCL._SX322_BO1,204,203,200_.jpg",
-            authors: {
-              name: "Daniel Kahneman"
-            }
-          }
-        },
-        {
-          id: "summary_4",
-          title: "Sapiens",
-          reading_time: 25,
-          books: {
-            title: "Sapiens",
-            cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/41yu2qXhXXL._SX324_BO1,204,203,200_.jpg",
-            authors: {
-              name: "Yuval Noah Harari"
-            }
-          }
-        }
-      ];
-      
-      return {
-        summaries: mockSummaries,
-        error: null
-      };
-    } catch (error) {
-      console.error("Error fetching summaries:", error);
-      return {
-        summaries: [],
-        error: "Failed to fetch summaries"
-      };
-    }
-  },
-  
-  getSummaryById: async (id: string) => {
-    try {
-      console.log("API: Fetching summary by ID:", id);
-      // Mock implementation
-      return {
-        summary: {
-          id: id,
-          title: "Atomic Habits",
-          content: "This is a summary of Atomic Habits...",
-          reading_time: 15,
-          audio_url: "/audio/atomic-habits.mp3",
-          books: {
-            title: "Atomic Habits",
-            cover_image_url: "https://images-na.ssl-images-amazon.com/images/I/51-uspgqWIL._SX329_BO1,204,203,200_.jpg",
-            authors: {
-              name: "James Clear"
-            }
-          }
-        },
-        error: null
-      };
-    } catch (error) {
-      console.error("Error fetching summary:", error);
-      return {
-        summary: null,
-        error: "Failed to fetch summary"
-      };
-    }
-  }
-};
-
-export const dashboard = {
-  getUserDashboardData: async () => {
-    try {
-      console.log("API: Fetching user dashboard data");
-      // Mock implementation
-      return {
-        dashboardData: {
-          readingStreak: 5,
-          booksRead: 12,
-          readingTime: 240, // minutes
-          yearlyGoal: {
-            current: 12,
-            target: 50
-          }
-        },
-        error: null
-      };
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      return {
-        dashboardData: null,
-        error: "Failed to fetch dashboard data"
-      };
-    }
-  }
-};
-
-export const profiles = {
-  getProfile: async (userId: string) => {
-    try {
-      console.log("API: Fetching profile for user:", userId);
-      // Mock implementation
-      return {
-        profile: {
-          id: userId,
-          username: "bookworm",
-          full_name: "John Reader",
-          bio: "Avid reader and book lover",
-          avatar_url: "https://api.dicebear.com/7.x/avataaars/svg?seed=bookworm"
-        },
-        error: null
-      };
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-      return {
-        profile: null,
-        error: "Failed to fetch profile"
-      };
-    }
-  },
-  
-  updateProfile: async (userId: string, profileData: any) => {
-    try {
-      console.log("API: Updating profile for user:", userId, "with data:", profileData);
-      // Mock implementation
-      return {
-        profile: {
-          id: userId,
-          ...profileData
-        },
-        error: null
-      };
-    } catch (error) {
-      console.error("Error updating profile:", error);
-      return {
-        profile: null,
-        error: "Failed to update profile"
-      };
-    }
-  },
-  
-  uploadAvatar: async (userId: string, file: File) => {
-    try {
-      console.log("API: Uploading avatar for user:", userId, "filename:", file.name);
-      // Mock implementation
-      return {
-        url: URL.createObjectURL(file),
-        error: null
-      };
-    } catch (error) {
-      console.error("Error uploading avatar:", error);
-      return {
-        url: null,
-        error: "Failed to upload avatar"
       };
     }
   }

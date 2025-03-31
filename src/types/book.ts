@@ -6,4 +6,7 @@ export interface Book {
   coverImage: string;
   category: string;
   readTime: number;
+  description?: string;
+  publishedYear?: number;
+  isbn?: string;
 }

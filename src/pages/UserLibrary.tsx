@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Search } from "lucide-react";
 import BookCard from "@/components/BookCard";
 import { useQuery } from "@tanstack/react-query";
-import { summaries, categories } from "@/lib/api";
+import { summaries, categories, books } from "@/lib/api";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import { Book } from "@/types/book";
 
@@ -35,24 +34,20 @@ const UserLibrary = () => {
     isLoading: booksLoading,
     refetch
   } = useQuery({
-    queryKey: ["summaries", currentPage, categoryFilter],
+    queryKey: ["books", currentPage, categoryFilter],
     queryFn: async () => {
-      const filter = categoryFilter ? { category: categoryFilter } : undefined;
-      const { summaries: data } = await summaries.getAllSummaries(currentPage, 12, filter);
+      const { books: data, error } = await books.getBooks();
       
-      return data?.map(summary => ({
-        id: summary.id,
-        title: summary.title || summary.books?.title || "Unknown Title",
-        author: summary.books?.authors?.name || "Unknown Author",
-        coverImage: summary.books?.cover_image_url || "/placeholder.svg",
-        category: "Book Summary", // Would ideally come from the API
-        readTime: summary.reading_time || 15,
-        isPremium: summary.is_premium
-      })) || [];
+      if (error) {
+        console.error("Error fetching books:", error);
+        return [];
+      }
+      
+      console.log("Books loaded:", data?.length || 0);
+      return data || [];
     }
   });
   
-  // Search client-side if we have the data loaded
   const filteredBooks = booksData ? booksData.filter((book) => {
     if (!searchTerm) return true;
     return (
@@ -86,7 +81,6 @@ const UserLibrary = () => {
     <div className="container px-4 py-8 mx-auto md:px-6">
       <h1 className="mb-8 gradient-text">Book Library</h1>
 
-      {/* Search and Filters */}
       <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-4">
         <div className="relative md:col-span-2">
           <Search className="absolute w-5 h-5 text-gray-400 transform -translate-y-1/2 left-3 top-1/2" />
@@ -125,7 +119,6 @@ const UserLibrary = () => {
         </Select>
       </div>
 
-      {/* Books Grid */}
       {isLoading ? (
         <LoadingSpinner />
       ) : filteredBooks && filteredBooks.length > 0 ? (
@@ -149,7 +142,6 @@ const UserLibrary = () => {
         </div>
       )}
 
-      {/* Pagination */}
       {!isLoading && booksData && booksData.length > 0 && (
         <div className="flex justify-center mt-8 space-x-2">
           <Button 
